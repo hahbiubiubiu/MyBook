@@ -1,12 +1,3 @@
----
-title: PYC文件解析
-date: 2023-08-27 11:04:40
-categories: 
-- Reverse
-tags: 
-- Reverse
----
-
 # PyCodeObject
 
 ```C

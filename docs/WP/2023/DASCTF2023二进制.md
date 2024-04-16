@@ -1,13 +1,3 @@
----
-title: DASCTF2023二进制
-date: 2023-06-23 10:13:45
-categories: 
-- Reverse
-tags: 
-- Reverse
-- CTF
----
-
 # careful
 
 直接上传微步云沙箱

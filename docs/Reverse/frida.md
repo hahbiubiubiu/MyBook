@@ -1,9 +1,3 @@
----
-title: frida
-date: 2023-07-08 12:54:36
-tags:
----
-
 # 使用
 
 执行模拟器中的`frida-server`，然后adb端口转发，与ida的dbgserver类似。
