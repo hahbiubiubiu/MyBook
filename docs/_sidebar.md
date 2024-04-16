@@ -7,6 +7,8 @@
 - MISC
   - [电子取证](/MISC/电子取证)
 - PWN
+  - [PWN](/PWN/PWN)
+  - [tool](/PWN/tool)
 - Reverse
   - [DWARF](/Reverse/DWARF)
   - [frida](/Reverse/frida)
