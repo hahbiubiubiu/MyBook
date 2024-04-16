@@ -10,7 +10,7 @@ def write_directory_structure(startpath):
                 dirs.remove(f[:-3])
         root = root.replace('./', '/')
         level = root.replace(startpath, '').count(os.sep)
-        indent = '\t' * (level)
+        indent = '  ' * (level)
         result += ('{}- {}\n'.format(indent, os.path.basename(root)))
         subindent = '  ' * (level + 1)
         for f in files:

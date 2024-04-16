@@ -1,13 +1,3 @@
----
-title: ciscn2023
-date: 2023-06-27 17:55:23
-categories: 
-- Reverse
-tags: 
-- Reverse
-- CTF
----
-
 # babyre
 
 snap.berkeley.edu打开xml文件。

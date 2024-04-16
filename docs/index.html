@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <title>Docsify-Guide</title>
+    <title>B1ubiu's Book</title>
     <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
     <meta name="description" content="Description">
     <meta name="viewport"
@@ -13,11 +13,13 @@
     <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon" />
     <!-- 默认主题 -->
     <link rel="stylesheet" href="//cdn.jsdelivr.net/npm/docsify/lib/themes/vue.css">
+    <!-- 侧边栏风格 -->
+    <link rel="stylesheet" href="//cdn.jsdelivr.net/npm/docsify-sidebar-collapse/dist/sidebar-folder.min.css" />
 </head>
 
 <body>
     <!-- 定义加载时候的动作 -->
-    <div id="app">🏃‍🏃‍🏃‍💨加载中...</div>
+    <div id="app">⚽🎮🏃🏻‍♂️🏃‍♂️🏃🏾‍♂️加载中...</div>
     <script>
         window.$docsify = {
             // 项目名称
@@ -26,7 +28,6 @@
             //repo: ,
             // 侧边栏支持，默认加载的是项目根目录下的_sidebar.md文件
             loadSidebar: true,
-            sidebarDisplayLevel: 1,
             alias: {
                 '/.*/_sidebar.md': '/_sidebar.md'
             },
@@ -37,7 +38,8 @@
             // 最大支持渲染的标题层级
             maxLevel: 5,
             // 自定义侧边栏后默认不会再生成目录，设置生成目录的最大层级（建议配置为2-4）
-            subMaxLevel: 3,
+            subMaxLevel: 5,
+            sidebarDisplayLevel: 0,
             // 小屏设备下合并导航栏到侧边栏
             mergeNavbar: true,
             auto2top: true,
@@ -58,7 +60,7 @@
                 // 支持本地化
                 placeholder: 'Type to search',
                 noData: '/(ㄒoㄒ)/~~ nothing found',
-                depth: 4
+                depth: 5
             },
             // 字数统计
             count:{
@@ -74,11 +76,24 @@
             // 回到顶部
             scrollToTop: {
                 auto: true,
-                text: '🔼',
+                text: '👆',
                 right: 12,
                 bottom: 52,
                 offset: 25
             },
+            // 分章节按钮
+            pagination: {
+                previousText: '上一章节',
+                nextText: '下一章节',
+                crossChapter: true,
+                crossChapterText: true,
+            },
+            // 进度条
+            progress: {
+                position: "top",
+                color: "var(--theme-color,#42b983)",
+                height: "3px",
+            }
         }
     </script>
     <!-- MathJax -->
@@ -105,7 +120,11 @@
     <script src="//unpkg.com/docsify-count/dist/countable.js"></script>
     <!-- 回到顶部 -->
     <script src="//unpkg.com/docsify-scroll-to-top/dist/docsify-scroll-to-top.min.js"></script>
-
-
+    <!-- 分章节按钮 -->
+    <script src="//unpkg.com/docsify-pagination/dist/docsify-pagination.min.js"></script>
+    <!-- 侧边栏插件 -->
+    <script src="//cdn.jsdelivr.net/npm/docsify-sidebar-collapse/dist/docsify-sidebar-collapse.min.js"></script>
+    <!-- 阅读进度 -->
+    <script src="https://cdn.jsdelivr.net/npm/docsify-progress@latest/dist/progress.min.js"></script>
 </body>
 </html>
