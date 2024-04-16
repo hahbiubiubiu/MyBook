@@ -1,0 +1,630 @@
+学一下，在此仅作记录。
+
+参考：
+
+👉[AES白盒加密解读与实现（Chow方案）](https://blog.csdn.net/qq_37638441/article/details/128968233)
+
+👉[【密码学】一文读懂白盒AES(Chow方案)(一)](https://developer.aliyun.com/article/952800)
+
+
+
+# 白盒AES
+
+## AES加密流程
+
+![](白盒AES/d0fc83215e3c4314adff30b7f2509ebd.png)
+
+## 基于表实现的AES实现
+
+### 改变正常AES流程
+
+1. $$AddRoundKey(state,k_0)$$放入循环，$$AddRoundKey(state,k_9)$$移出循环
+2. `ShiftRow`是线性变换，`SubBytes`是映射变换，可以调换位置而不影响结果
+3. 在轮密钥也进行行移位的情况下，`AddRoundKey`和`ShiftRow`调换位置且结果不变
+
+改变后，AES流程如下：
+
+![](白盒AES/5ee48cb3efc747f79de94ace48a366aa.png)
+
+### 生成表
+
+#### T-boxs
+
+看`AddRoundKey`和`SubBytes`两个过程，可以合并为一个过程
+$$
+AddRoundKey(x, \hat{k_{i-1}}[i]) = x \oplus \hat{k_{i-1}}[i]\\
+SubBytes(x) = Sbox(x)\\
+{T_i}^r(x)= S(x \oplus \hat{k_{r-1}}[i]) (i=0...15, r=1...9)\\
+{T_i}^{10}(x)= S(x \oplus \hat{k_{9}}[i])\oplus k_{10}[i] (i=0...15)
+$$
+可以看出Tbox是一个`10*16*256`的表，即可实现这两个过程的基于表的实现
+
+```C
+u8 TBoxes[10][16][256];
+void GetTbox(u8 key[176]) {
+    for (int r = 0; r <= 9; r++) {//轮数
+        shiftRows (key + 16*r);
+        for (int index = 0; index < 16; index++)//字节数
+        {
+            for (int x = 0; x < 256; x++) {//0-255
+                TBoxes[r][index][x] = SBox[x^key[16 * r + index]];
+                if (r == 9) {
+                    TBoxes[r][index][x] = 
+                        TBoxes[r][index][x] ^ key[16 * (r + 1) + index];
+                }
+            }
+        }
+    }
+}
+```
+
+#### Tyi_tables
+
+在`MixColumns`中，实际可以看作这么一个过程：
+
+![](白盒AES/image-20231230150842342.png)
+
+对16Byte的矩阵的列进行操作。
+
+![](白盒AES/970d3ae9c2a94d4da7fc463bec2cf254.png)
+$$
+MixColumns:T_{y_0}(x) \oplus T_{y_1}(x) \oplus Ty_{y_2}(x) \oplus Ty_{y_3}(x)
+$$
+
+```C
+u32 TyiTables[4][256];
+void GetTyiTable() {
+    for (int x = 0; x < 256; x++) {
+        TyiTables[0][x] = 
+            (gMul(2, x) << 24) | (x << 16) | (x << 8) | gMul(3, x);
+        TyiTables[1][x] = 
+            (gMul(3, x) << 24) | (gMul(2, x) << 16) | (x << 8) | x;
+        TyiTables[2][x] = 
+            (x << 24) | (gMul(3, x) << 16) | (gMul(2, x) << 8) | x;
+        TyiTables[3][x] = 
+            (x << 24) | (x << 16) | (gMul(3, x) << 8) | gMul(2, x);
+    }
+}
+```
+
+这里的`gMul`：
+
+```Rust
+fn gmul(ap: u8, bp: u8) -> u8 {
+    let mut p = 0u8;
+    let mut a = ap;
+    let mut b = bp;
+    while a != 0 && b != 0 {
+        if b & 1 != 0 {
+            p ^= a;
+        }
+        if a & 0x80 != 0 {
+            // XOR with the primitive polynomial x^8 + x^4 + x^3 + x + 1 (0b1_0001_1011) – you can change it but it must be irreducible
+            a = (((a << 1) as u16) ^ 0x11b) as u8;
+        } else {
+            a = a << 1;
+        }
+        b >>= 1;
+    }
+    return p & 0xFF;
+}
+```
+
+#### xorTable
+
+这里的`Xor table`感觉适合`Tyi_tables`是一起的，一起组成`MixColumns`的过程。
+
+`Xor tables`用于对于每轮当中的两个半字节进行一个查表的异或运算。
+`Xor tables[9][96][16][16]`：其中9为轮数，96为一轮所需的异或次数，16、16为4bit数所有可能值。
+
+```C
+u8 xorTable[9][96][16][16]
+void GetxorTable() {
+	for (int i = 0; i < 9; i++) {
+		for (int j = 0; j < 96; j++) {
+			for (int x = 0; x < 16; x++) { //2的4次方=16
+				for (int y = 0; y < 16; y++) {
+					xorTable[i][j][x][y] = x^y;
+				}
+			}
+		}
+	}
+}
+```
+
+#### 合并Tboxs和Tyi_tables
+
+将两个查表操作合在一起：
+
+```C
+u32 TyiBoxes[9][16][256];
+void GetTyiBoxs() {
+    for (int r = 0; r < 9; r++) {
+        for (int  index = 0; index < 16; index++)
+        {
+            for (int x = 0; x < 256; x++)
+            {
+                u8 t = TBoxes[r][index][x];
+                TyiBoxes[r][index][x] = TyiTables[index % 4][t];
+            }
+        }
+    }
+}
+```
+
+#### 总实现
+
+```C
+void Table_encrypt(u8 input[16], u8 output[16]) {
+    u32 a, b, c, d, aa, bb, cc, dd;
+    for (int i = 0; i < 9; i++) {
+        shiftRows(input);
+        for (int j = 0; j < 4; j++) {
+            a = TyiBoxes[i][4 * j + 0][input[4 * j + 0]];
+            b = TyiBoxes[i][4 * j + 1][input[4 * j + 1]];
+            c = TyiBoxes[i][4 * j + 2][input[4 * j + 2]];
+            d = TyiBoxes[i][4 * j + 3][input[4 * j + 3]];
+            aa = xorTable[i][24 * j + 0][(a >> 28) & 0xf][(b >> 28) & 0xf];
+            bb = xorTable[i][24 * j + 1][(c >> 28) & 0xf][(d >> 28) & 0xf];
+            cc = xorTable[i][24 * j + 2][(a >> 24) & 0xf][(b >> 24) & 0xf];
+            dd = xorTable[i][24 * j + 3][(c >> 24) & 0xf][(d >> 24) & 0xf];
+            input[4 * j + 0] = 
+                xorTable[i][24 * j + 4][aa][bb] << 4 | 
+                xorTable[i][24 * j + 5][cc][dd];
+            aa = xorTable[i][24 * j + 6][(a >> 20) & 0xf][(b >> 20) & 0xf];
+            bb = xorTable[i][24 * j + 7][(c >> 20) & 0xf][(d >> 20) & 0xf];
+            cc = xorTable[i][24 * j + 8][(a >> 16) & 0xf][(b >> 16) & 0xf];
+            dd = xorTable[i][24 * j + 9][(c >> 16) & 0xf][(d >> 16) & 0xf];
+            input[4 * j + 1] = 
+                xorTable[i][24 * j + 10][aa][bb] << 4 | 
+                xorTable[i][24 * j + 11][cc][dd];
+            aa = xorTable[i][24 * j + 12][(a >> 12) & 0xf][(b >> 12) & 0xf];
+            bb = xorTable[i][24 * j + 13][(c >> 12) & 0xf][(d >> 12) & 0xf];
+            cc = xorTable[i][24 * j + 14][(a >> 8) & 0xf][(b >> 8) & 0xf];
+            dd = xorTable[i][24 * j + 15][(c >> 8) & 0xf][(d >> 8) & 0xf];
+            input[4 * j + 2] = 
+                xorTable[i][24 * j + 16][aa][bb] << 4 | 
+                xorTable[i][24 * j + 17][cc][dd];
+            aa = xorTable[i][24 * j + 18][(a >> 4) & 0xf][(b >> 4) & 0xf];
+            bb = xorTable[i][24 * j + 19][(c >> 4) & 0xf][(d >> 4) & 0xf];
+            cc = xorTable[i][24 * j + 20][(a >> 0) & 0xf][(b >> 0) & 0xf];
+            dd = xorTable[i][24 * j + 21][(c >> 0) & 0xf][(d >> 0) & 0xf];
+            input[4 * j + 3] = 
+                xorTable[i][24 * j + 22][aa][bb] << 4 | 
+                xorTable[i][24 * j + 23][cc][dd];
+        }
+    }
+    //第十轮
+    shiftRows(input);
+    for (int j = 0; j < 16; j++) {
+        input[j] = TBoxes[9][j][input[j]];
+    }
+    for (int i = 0; i < 16; i++)
+        output[i] = input[i];
+}
+```
+
+# 例题
+
+## 强网杯 dot
+
+之前看到这个完全不知道会是白盒AES
+
+通过更改第十轮的输入的一个字节，得到密文结果（与正确结果会有四个字节的不同）
+
+分别改十六次，每次位置不同
+
+```C#
+public static void AAA(byte[] aaa, byte[] bbb)
+{
+    for (int i = 0; i < 9; i++)
+    {
+        Program.GGG(aaa);  // 第十轮时在这里更改一个字节的密文
+        for (int j = 0; j < 4; j++)
+        {
+            uint num = Program.v11[i, 4 * j, (int)aaa[4 * j]];
+            uint num2 = Program.v11[i, 4 * j + 1, (int)aaa[4 * j + 1]];
+            uint num3 = Program.v11[i, 4 * j + 2, (int)aaa[4 * j + 2]];
+            uint num4 = Program.v11[i, 4 * j + 3, (int)aaa[4 * j + 3]];
+            uint num5 = 
+                (uint)Program.v12[i, 24 * j, (int)(num >> 28 & 15U), (int)(num2 >> 28 & 15U)];
+            uint num6 = (uint)Program.v12[i, 24 * j + 1, (int)(num3 >> 28 & 15U), (int)(num4 >> 28 & 15U)];
+            uint num7 = (uint)Program.v12[i, 24 * j + 2, (int)(num >> 24 & 15U), (int)(num2 >> 24 & 15U)];
+            uint num8 = (uint)Program.v12[i, 24 * j + 3, (int)(num3 >> 24 & 15U), (int)(num4 >> 24 & 15U)];
+            aaa[4 * j] = (byte)((int)Program.v12[i, 24 * j + 4, (int)num5, (int)num6] << 4 | (int)Program.v12[i, 24 * j + 5, (int)num7, (int)num8]);
+            num5 = (uint)Program.v12[i, 24 * j + 6, (int)(num >> 20 & 15U), (int)(num2 >> 20 & 15U)];
+            num6 = (uint)Program.v12[i, 24 * j + 7, (int)(num3 >> 20 & 15U), (int)(num4 >> 20 & 15U)];
+            num7 = (uint)Program.v12[i, 24 * j + 8, (int)(num >> 16 & 15U), (int)(num2 >> 16 & 15U)];
+            num8 = (uint)Program.v12[i, 24 * j + 9, (int)(num3 >> 16 & 15U), (int)(num4 >> 16 & 15U)];
+            aaa[4 * j + 1] = (byte)((int)Program.v12[i, 24 * j + 10, (int)num5, (int)num6] << 4 | (int)Program.v12[i, 24 * j + 11, (int)num7, (int)num8]);
+            num5 = (uint)Program.v12[i, 24 * j + 12, (int)(num >> 12 & 15U), (int)(num2 >> 12 & 15U)];
+            num6 = (uint)Program.v12[i, 24 * j + 13, (int)(num3 >> 12 & 15U), (int)(num4 >> 12 & 15U)];
+            num7 = (uint)Program.v12[i, 24 * j + 14, (int)(num >> 8 & 15U), (int)(num2 >> 8 & 15U)];
+            num8 = (uint)Program.v12[i, 24 * j + 15, (int)(num3 >> 8 & 15U), (int)(num4 >> 8 & 15U)];
+            aaa[4 * j + 2] = (byte)((int)Program.v12[i, 24 * j + 16, (int)num5, (int)num6] << 4 | (int)Program.v12[i, 24 * j + 17, (int)num7, (int)num8]);
+            num5 = (uint)Program.v12[i, 24 * j + 18, (int)(num >> 4 & 15U), (int)(num2 >> 4 & 15U)];
+            num6 = (uint)Program.v12[i, 24 * j + 19, (int)(num3 >> 4 & 15U), (int)(num4 >> 4 & 15U)];
+            num7 = (uint)Program.v12[i, 24 * j + 20, (int)(num & 15U), (int)(num2 & 15U)];
+            num8 = (uint)Program.v12[i, 24 * j + 21, (int)(num3 & 15U), (int)(num4 & 15U)];
+            aaa[4 * j + 3] = (byte)((int)Program.v12[i, 24 * j + 22, (int)num5, (int)num6] << 4 | (int)Program.v12[i, 24 * j + 23, (int)num7, (int)num8]);
+            num = Program.v13[i, 4 * j, (int)aaa[4 * j]];
+            num2 = Program.v13[i, 4 * j + 1, (int)aaa[4 * j + 1]];
+            num3 = Program.v13[i, 4 * j + 2, (int)aaa[4 * j + 2]];
+            num4 = Program.v13[i, 4 * j + 3, (int)aaa[4 * j + 3]];
+            num5 = (uint)Program.v12[i, 24 * j, (int)(num >> 28 & 15U), (int)(num2 >> 28 & 15U)];
+            num6 = (uint)Program.v12[i, 24 * j + 1, (int)(num3 >> 28 & 15U), (int)(num4 >> 28 & 15U)];
+            num7 = (uint)Program.v12[i, 24 * j + 2, (int)(num >> 24 & 15U), (int)(num2 >> 24 & 15U)];
+            num8 = (uint)Program.v12[i, 24 * j + 3, (int)(num3 >> 24 & 15U), (int)(num4 >> 24 & 15U)];
+            aaa[4 * j] = (byte)((int)Program.v12[i, 24 * j + 4, (int)num5, (int)num6] << 4 | (int)Program.v12[i, 24 * j + 5, (int)num7, (int)num8]);
+            num5 = (uint)Program.v12[i, 24 * j + 6, (int)(num >> 20 & 15U), (int)(num2 >> 20 & 15U)];
+            num6 = (uint)Program.v12[i, 24 * j + 7, (int)(num3 >> 20 & 15U), (int)(num4 >> 20 & 15U)];
+            num7 = (uint)Program.v12[i, 24 * j + 8, (int)(num >> 16 & 15U), (int)(num2 >> 16 & 15U)];
+            num8 = (uint)Program.v12[i, 24 * j + 9, (int)(num3 >> 16 & 15U), (int)(num4 >> 16 & 15U)];
+            aaa[4 * j + 1] = (byte)((int)Program.v12[i, 24 * j + 10, (int)num5, (int)num6] << 4 | (int)Program.v12[i, 24 * j + 11, (int)num7, (int)num8]);
+            num5 = (uint)Program.v12[i, 24 * j + 12, (int)(num >> 12 & 15U), (int)(num2 >> 12 & 15U)];
+            num6 = (uint)Program.v12[i, 24 * j + 13, (int)(num3 >> 12 & 15U), (int)(num4 >> 12 & 15U)];
+            num7 = (uint)Program.v12[i, 24 * j + 14, (int)(num >> 8 & 15U), (int)(num2 >> 8 & 15U)];
+            num8 = (uint)Program.v12[i, 24 * j + 15, (int)(num3 >> 8 & 15U), (int)(num4 >> 8 & 15U)];
+            aaa[4 * j + 2] = (byte)((int)Program.v12[i, 24 * j + 16, (int)num5, (int)num6] << 4 | (int)Program.v12[i, 24 * j + 17, (int)num7, (int)num8]);
+            num5 = (uint)Program.v12[i, 24 * j + 18, (int)(num >> 4 & 15U), (int)(num2 >> 4 & 15U)];
+            num6 = (uint)Program.v12[i, 24 * j + 19, (int)(num3 >> 4 & 15U), (int)(num4 >> 4 & 15U)];
+            num7 = (uint)Program.v12[i, 24 * j + 20, (int)(num & 15U), (int)(num2 & 15U)];
+            num8 = (uint)Program.v12[i, 24 * j + 21, (int)(num3 & 15U), (int)(num4 & 15U)];
+            aaa[4 * j + 3] = (byte)((int)Program.v12[i, 24 * j + 22, (int)num5, (int)num6] << 4 | (int)Program.v12[i, 24 * j + 23, (int)num7, (int)num8]);
+        }
+    }
+    Program.GGG(aaa);
+    for (int k = 0; k < 16; k++)
+    {
+        aaa[k] = Program.v14[9, k, (int)aaa[k]];
+    }
+    for (int l = 0; l < 16; l++)
+    {
+        bbb[l] = aaa[l];  // 获取结果
+    }
+}
+```
+
+使用`phoenixAES`推导出第十轮的密钥：
+
+```Python
+p = 'abcdefghijklmn12'
+c  = '809d8b75d9097398e20afe0e6da11e55'
+c0 = 'e49d8b75d9097388e20a6d0e6d5c1e55'
+c1 = '809d8b2ad909a498e2bcfe0ed7a11e55'
+c2 = '809d2b75d9ed7398ea0afe0e6da11ed0'
+c3 = '80318b757c097398e20afe4e6da1e855'
+c4 = '809c8b7565097398e20afe786da13055'
+c5 = 'd99d8b75d9097348e20a0d0e6daf1e55'
+c6 = '809d8bb2d909e498e229fe0e35a11e55'
+c7 = '809d7c75d9d07398550afe0e6da11ea7'
+c8 = '809d3b75d9a17398990afe0e6da11e30'
+c9 = '80e88b7546097398e20afe526da1b755'
+c10 = 'ff9d8b75d90973e9e20ab50e6d061e55'
+c11 = '809d8b4ad909f098e260fe0ee9a11e55'
+c12 = '809d8b44d909e498e200fe0ed9a11e55'
+c13 = '809d8475d9ce73982b0afe0e6da11ee0'
+c14 = '80a38b750e097398e20afe546da18255'
+c15 = 'af9d8b75d90973cde20a230e6d861e55'
+content = f'''
+{c}\n{c0}\n{c1}\n{c2}\n{c3}\n{c4}\n{c5}\n{c6}\n{c7}\n{c8}\n{c9}\n{c10}\n{c11}\n{c12}\n{c13}\n{c14}\n{c15}
+'''
+with open('tracefile', 'wb') as f:
+    f.write(content.encode('utf-8'))
+
+import phoenixAES
+phoenixAES.crack_file('./tracefile', verbose=0)
+# Last round key #N found:
+# EA9F6BE2DF5C358495648BEAB9FCFF81
+```
+
+使用[SideChannelMarvels/Stark](https://github.com/SideChannelMarvels/Stark)解出原始密钥：
+
+```shell
+> .\aes_keyschedule.exe EA9F6BE2DF5C358495648BEAB9FCFF81 10
+K00: 51574232303233486170707947616D65
+K01: BF6B0F928F593CDAEE294CA3A94821C6
+K02: EF96BB4160CF879B8EE6CB3827AEEAFE
+K03: 0F11008D6FDE8716E1384C2EC696A6D0
+K04: 97357039F8EBF72F19D3BB01DF451DD1
+K05: E9914EA7117AB98808A90289D7EC1F58
+K06: 075124A9162B9D211E829FA8C96E80F0
+K07: D89CA874CEB73555D035AAFD195B2A0D
+K08: 61797FA0AFCE4AF57FFBE00866A0CA05
+K09: 9A0D149335C35E664A38BE6E2C98746B
+K10: EA9F6BE2DF5C358495648BEAB9FCFF81
+```
+
+得到密钥：`QWB2023HappyGame`
+
+由此解得明文：
+
+![](白盒AES/image-20231230163423665.png)
+
+## 巅峰极客 m1_read
+
+白盒AES + 异或0x66：
+
+```C
+__int8 __fastcall sub_140004BF0(__m128i *a1, __m128i *a2)
+{
+    __int8 *v2; // rdi
+    __int64 v3; // r13
+    __int64 v4; // r12
+    __m128i *v5; // rbx
+    __int8 *v6; // rbx
+    unsigned int v7; // ebp
+    unsigned int v8; // edi
+    unsigned int v9; // r14d
+    unsigned int v10; // esi
+    __int64 v11; // r11
+    __int64 v12; // r10
+    __int64 v13; // r9
+    __int64 v14; // rax
+    unsigned int v15; // edi
+    __int8 result; // al
+    __int64 v17; // rdx
+    __m128i *v18; // rcx
+    __int8 v19; // al
+    __int64 v22; // [rsp+70h] [rbp+18h]
+
+    v2 = &a1->m128i_i8[2];
+    v3 = 0i64;
+    v4 = 0i64;
+    v5 = a1;
+    do
+    {
+        shiftRows(v5);
+        v6 = v2;
+        v22 = 4i64;
+        do
+        {
+            v7 = dword_1400A6000[v4 + (unsigned __int8)*(v6 - 2)];
+            v8 = dword_1400A6400[v4 + (unsigned __int8)*(v6 - 1)];
+            v9 = dword_1400A6800[v4 + (unsigned __int8)*v6];
+            v10 = dword_1400A6C00[v4 + (unsigned __int8)v6[1]];
+            v11 = (unsigned __int8)(byte_1400F2000[16 * v3
+                                                   + 1280
+                                                   + 16
+                                                   * byte_1400F2000[16 * v3 + 512 + 16 * (HIBYTE(v7) & 0xF) + (HIBYTE(v8) & 0xF)]
+                                                   + byte_1400F2000[16 * v3
+                                                                    + 768
+                                                                    + 16 * (HIBYTE(v9) & 0xF)
+                                                                    + (HIBYTE(v10) & 0xF)]] | (16
+                                                                                               * byte_1400F2000[16 * v3 + 1024 + 16 * byte_1400F2000[16 * v3 + 16 * ((unsigned __int64)v7 >> 28) + ((unsigned __int64)v8 >> 28)] + byte_1400F2000[16 * v3 + 256 + 16 * ((unsigned __int64)v9 >> 28) + ((unsigned __int64)v10 >> 28)]]));
+            *(v6 - 2) = v11;
+            v12 = (unsigned __int8)(byte_1400F2000[16 * v3
+                                                   + 2816
+                                                   + 16
+                                                   * byte_1400F2000[16 * v3
+                                                                    + 2048
+                                                                    + 16 * (HIWORD(v7) & 0xF)
+                                                                    + (HIWORD(v8) & 0xF)]
+                                                   + byte_1400F2000[16 * v3
+                                                                    + 2304
+                                                                    + 16 * (HIWORD(v9) & 0xF)
+                                                                    + (HIWORD(v10) & 0xF)]] | (16
+                                                                                               * byte_1400F2000[16 * v3 + 2560 + 16 * byte_1400F2000[16 * v3 + 1536 + 16 * ((v7 >> 20) & 0xF) + ((v8 >> 20) & 0xF)] + byte_1400F2000[16 * v3 + 1792 + 16 * ((v9 >> 20) & 0xF) + ((v10 >> 20) & 0xF)]]));
+            *(v6 - 1) = v12;
+            v13 = (unsigned __int8)(byte_1400F2000[16 * v3
+                                                   + 4352
+                                                   + 16
+                                                   * byte_1400F2000[16 * v3 + 3584 + 16 * ((v7 >> 8) & 0xF) + ((v8 >> 8) & 0xF)]
+                                                   + byte_1400F2000[16 * v3 + 3840 + 16 * ((v9 >> 8) & 0xF) + ((v10 >> 8) & 0xF)]] | (16 * byte_1400F2000[16 * v3 + 4096 + 16 * byte_1400F2000[16 * v3 + 3072 + 16 * ((unsigned __int16)v7 >> 12) + ((unsigned __int16)v8 >> 12)] + byte_1400F2000[16 * v3 + 3328 + 16 * ((unsigned __int16)v9 >> 12) + ((unsigned __int16)v10 >> 12)]]));
+            *v6 = v13;
+            v14 = (unsigned __int8)(byte_1400F3500[16 * v3
+                                                   + 512
+                                                   + 16
+                                                   * (unsigned __int8)byte_1400F3400[16 * v3 + 16 * (v7 & 0xF) + (v8 & 0xF)]
+                                                   + byte_1400F3500[16 * v3 + 16 * (v9 & 0xF) + (v10 & 0xF)]] | (16 * byte_1400F3500[16 * v3 + 256 + 16 * byte_1400F2000[16 * v3 + 4608 + 16 * ((unsigned __int8)v7 >> 4) + ((unsigned __int8)v8 >> 4)] + byte_1400F2000[16 * v3 + 4864 + 16 * ((unsigned __int8)v9 >> 4) + ((unsigned __int8)v10 >> 4)]]));
+            v6[1] = v14;
+            v15 = dword_1400CA000[v4 + v11];
+            LODWORD(v11) = dword_1400CA400[v4 + v12];
+            LODWORD(v12) = dword_1400CA800[v4 + v13];
+            LODWORD(v13) = dword_1400CAC00[v4 + v14];
+            *(v6 - 2) = byte_1400F2000[16 * v3
+                                       + 1280
+                                       + 16 * byte_1400F2000[16 * v3 + 512 + 16 * (HIBYTE(v15) & 0xF) + (BYTE3(v11) & 0xF)]
+                                       + byte_1400F2000[16 * v3 + 768 + 16 * (BYTE3(v12) & 0xF) + (BYTE3(v13) & 0xF)]] | (16 * byte_1400F2000[16 * v3 + 1024 + 16 * byte_1400F2000[16 * v3 + 16 * ((unsigned __int64)v15 >> 28) + ((unsigned __int64)(unsigned int)v11 >> 28)] + byte_1400F2000[16 * v3 + 256 + 16 * ((unsigned __int64)(unsigned int)v12 >> 28) + ((unsigned __int64)(unsigned int)v13 >> 28)]]);
+            *(v6 - 1) = byte_1400F2000[16 * v3
+                                       + 2816
+                                       + 16 * byte_1400F2000[16 * v3 + 2048 + 16 * (HIWORD(v15) & 0xF) + (WORD1(v11) & 0xF)]
+                                       + byte_1400F2000[16 * v3 + 2304 + 16 * (WORD1(v12) & 0xF) + (WORD1(v13) & 0xF)]] | (16 * byte_1400F2000[16 * v3 + 2560 + 16 * byte_1400F2000[16 * v3 + 1536 + 16 * ((v15 >> 20) & 0xF) + (((unsigned int)v11 >> 20) & 0xF)] + byte_1400F2000[16 * v3 + 1792 + 16 * (((unsigned int)v12 >> 20) & 0xF) + (((unsigned int)v13 >> 20) & 0xF)]]);
+            *v6 = byte_1400F2000[16 * v3
+                                 + 4352
+                                 + 16
+                                 * byte_1400F2000[16 * v3 + 3584 + 16 * ((v15 >> 8) & 0xF) + (((unsigned int)v11 >> 8) & 0xF)]
+                                 + byte_1400F2000[16 * v3
+                                                  + 3840
+                                                  + 16 * (((unsigned int)v12 >> 8) & 0xF)
+                                                  + (((unsigned int)v13 >> 8) & 0xF)]] | (16
+                                                                                          * byte_1400F2000[16 * v3
+                                                                                                           + 4096
+                                                                                                           + 16
+                                                                                                           * byte_1400F2000[16 * v3 + 3072 + 16 * ((unsigned __int16)v15 >> 12) + ((unsigned __int16)v11 >> 12)]
+                                                                                                           + byte_1400F2000[16 * v3 + 3328 + 16 * ((unsigned __int16)v12 >> 12) + ((unsigned __int16)v13 >> 12)]]);
+            v6[1] = byte_1400F3500[16 * v3
+                                   + 512
+                                   + 16 * (unsigned __int8)byte_1400F3400[16 * v3 + 16 * (v15 & 0xF) + (v11 & 0xF)]
+                                   + byte_1400F3500[16 * v3 + 16 * (v12 & 0xF) + (v13 & 0xF)]] | (16
+                                                                                                  * byte_1400F3500[16 * v3 + 256 + 16 * byte_1400F2000[16 * v3 + 4608 + 16 * ((unsigned __int8)v15 >> 4) + ((unsigned __int8)v11 >> 4)] + byte_1400F2000[16 * v3 + 4864 + 16 * ((unsigned __int8)v12 >> 4) + ((unsigned __int8)v13 >> 4)]]);
+            v4 += 1024i64;
+            v6 += 4;
+            v3 += 384i64;
+            --v22;
+        }
+        while ( v22 );
+        v5 = a1;
+        v2 = &a1->m128i_i8[2];
+    }
+    while ( v4 < 36864 );
+    shiftRows(a1);
+    a1->m128i_i8[0] = byte_1400A4000[a1->m128i_u8[0]];
+    a1->m128i_i8[1] = byte_1400A4000[a1->m128i_u8[1] + 256];
+    a1->m128i_i8[2] = byte_1400A4000[a1->m128i_u8[2] + 512];
+    a1->m128i_i8[3] = byte_1400A4000[a1->m128i_u8[3] + 768];
+    a1->m128i_i8[4] = byte_1400A4000[a1->m128i_u8[4] + 1024];
+    a1->m128i_i8[5] = byte_1400A4000[a1->m128i_u8[5] + 1280];
+    a1->m128i_i8[6] = byte_1400A4000[a1->m128i_u8[6] + 1536];
+    a1->m128i_i8[7] = byte_1400A4000[a1->m128i_u8[7] + 1792];
+    a1->m128i_i8[8] = byte_1400A4000[a1->m128i_u8[8] + 2048];
+    a1->m128i_i8[9] = byte_1400A4000[a1->m128i_u8[9] + 2304];
+    a1->m128i_i8[10] = byte_1400A4000[a1->m128i_u8[10] + 2560];
+    a1->m128i_i8[11] = byte_1400A4000[a1->m128i_u8[11] + 2816];
+    a1->m128i_i8[12] = byte_1400A4000[a1->m128i_u8[12] + 3072];
+    a1->m128i_i8[13] = byte_1400A4000[a1->m128i_u8[13] + 3328];
+    a1->m128i_i8[14] = byte_1400A4000[a1->m128i_u8[14] + 3584];
+    a1->m128i_i8[15] = byte_1400A4000[a1->m128i_u8[15] + 3840];
+    result = (char)a2;
+    if ( a2 > (__m128i *)((char *)&a1->m128i_u64[1] + 7) || (__m128i *)((char *)&a2->m128i_u64[1] + 7) < a1 )
+    {
+        *a2 = _mm_xor_si128(_mm_load_si128((const __m128i *)&xmmword_140008A40), _mm_loadu_si128(a1));
+    }
+    else
+    {
+        v17 = 16i64;
+        v18 = a2;
+        do
+        {
+            v19 = v18->m128i_i8[(char *)a1 - (char *)a2];
+            v18 = (__m128i *)((char *)v18 + 1);
+            result = v19 ^ 0x66;
+            v18[-1].m128i_i8[15] = result;
+            --v17;
+        }
+        while ( v17 );
+    }
+    return result;
+}
+```
+
+网上师傅使用frida来调用函数获取数据的，学一下：
+
+```Python
+import frida
+import sys
+
+session = frida.attach("m1_read.exe")
+
+script = session.create_script("""
+  var baseAddr = Module.findBaseAddress("m1_read.exe");
+  var whiteAES = new NativeFunction(baseAddr.add(0x4BF0), 'pointer', ['pointer', 'pointer'])
+  var count = 9;
+  Interceptor.attach(baseAddr.add(0x4C2C), {
+      onEnter: function(args) {
+          count++;
+          if(count == 9) {
+              // 在第十轮的输入[0:16]中随机修改其中一个字节
+              this.context.rdi.add(Math.floor(Math.random() * 16)).writeU8(Math.floor(Math.random() * 256));
+          } 
+      },
+      onLeave: (retval) => {
+
+      }
+  })
+
+
+  for (let index = 0; index < 32; index++) {
+      var l = Memory.allocAnsiString("1234567890abcdef");
+      var b = Memory.alloc(16);
+      whiteAES(l, b);
+      // console.log(b.readByteArray(16));
+      console.log(Array.from(new Uint8Array(b.readByteArray(16))).map(byte => byte.toString(16).padStart(2, '0')).join(''));
+      count = 0;
+  }
+                               """)
+script.load()
+```
+
+这里获得的数据是被异或过的，因此使用phoenixAES之前要异或回来：
+
+```Python
+
+data = '''
+ca429fdc6bfa9b5e540c8f14b03bae88
+ca429f3d6bfaf55e54138f144d3bae88
+ca42acdc6bdd9b5ef90c8f14b03bae92
+ca429fdc6bfa9b5e540c8f14b03bae88
+af429fdc6bfa9b08540c7f14b0aeae88
+cac39fdc15fa9b5e540c8f22b03b4d88
+ca429fa06bfa7e5e54e68f143b3bae88
+ca429f656bfa355e545f8f148c3bae88
+a9429fdc6bfa9be4540c1914b0bbae88
+ca7b9fdcbafa9b5e540c8f5cb03b6988
+fc429fdc6bfa9b21540c7114b02dae88
+ca429fdc6bfa9b5e540c8f14b03bae88
+ca4245dc6b3a9b5e3e0c8f14b03baeb9
+ca42fadc6b7f9b5e680c8f14b03baed2
+ca429fdc6bfa9b5e540c8f14b03bae88
+45429fdc6bfa9b23540c2614b040ae88
+ca42ebdc6b019b5e380c8f14b03bae52
+ca429fdc6bfa9b5e540c8f14b03bae88
+caf39fdc8dfa9b5e540c8f84b03b2188
+caa49fdc8cfa9b5e540c8f2bb03b1b88
+ca429f686bfa315e54e58f14173bae88
+ca42cddc6bcb9b5ec70c8f14b03bae40
+ca429fdc6bfa9b5e540c8f14b03bae88
+ca429f556bfad15e54238f140d3bae88
+ca42addc6b509b5e430c8f14b03bae1e
+ca42fcdc6bd89b5e8d0c8f14b03baeb3
+ca1c9fdc17fa9b5e540c8f1bb03bfb88
+ca4293dc6b7b9b5ea20c8f14b03bae6d
+ca429ff06bfacb5e54d98f14d33bae88
+ca429ff76bfa445e54998f14c13bae88
+ca429fcf6bfa975e54fc8f14503bae88
+cad39fdce0fa9b5e540c8f6eb03b9288
+'''
+
+data = data.split('\n')[1:-1]
+for i in range(len(data)):
+    data[i] = bytes.fromhex(data[i])
+raw_data = [''] * 32
+for i in range(32):
+    for j in range(16):
+        raw_data[i] += "%02x" % (0x66 ^ data[i][j])
+data = ''.join([i + '\n' for i in raw_data])[:-1]
+
+import phoenixAES
+with open('tracefile', 'wb') as f:
+    f.write(data.encode('utf-8'))
+phoenixAES.crack_file('tracefile', verbose=0)
+# Last round key #N found:
+# B4EF5BCB3E92E21123E951CF6F8F188E
+```
+
+再使用`aes_keyschedule`获取最初的密钥：`00000000000000000000000000000000`
+
+```shell
+> .\aes_keyschedule.exe B4EF5BCB3E92E21123E951CF6F8F188E 10
+K00: 00000000000000000000000000000000
+K01: 62636363626363636263636362636363
+K02: 9B9898C9F9FBFBAA9B9898C9F9FBFBAA
+K03: 90973450696CCFFAF2F457330B0FAC99
+K04: EE06DA7B876A1581759E42B27E91EE2B
+K05: 7F2E2B88F8443E098DDA7CBBF34B9290
+K06: EC614B851425758C99FF09376AB49BA7
+K07: 217517873550620BACAF6B3CC61BF09B
+K08: 0EF903333BA9613897060A04511DFA9F
+K09: B1D4D8E28A7DB9DA1D7BB3DE4C664941
+K10: B4EF5BCB3E92E21123E951CF6F8F188E
+```
+
+最后AES解密：
+
+```Python
+with open('out.bin', 'rb') as f:
+    data = f.read()
+
+with open('out_xor.bin', 'wb') as f:
+    f.write(bytes([i ^ 0x66 for i in data]))
+
+from Crypto.Cipher import AES
+c = "6D FE 18 93 BF 2B B0 1F 3F 4A 2B 49 CB B2 8D EF"
+c = "".join(c.split(' '))
+c = bytes.fromhex(c)
+key = bytes.fromhex("00000000000000000000000000000000")
+cipher = AES.new(key, AES.MODE_ECB)
+print(cipher.decrypt(c))
+# b'cddc8d28dabb4ea9'
+```
+
