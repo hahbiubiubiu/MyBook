@@ -1,13 +1,29 @@
+- Algorithm
+  - [动态规划](/Algorithm/动态规划)
+- Cipher
+  - [白盒AES](/Cipher/白盒AES)
 - Linux
   - [ptrace](/Linux/ptrace)
+- MISC
+  - [电子取证](/MISC/电子取证)
+- PWN
+- Reverse
+  - [DWARF](/Reverse/DWARF)
+  - [frida](/Reverse/frida)
+  - [PYC解析](/Reverse/PYC解析)
+  - [天堂之门原理](/Reverse/天堂之门原理)
 - WP
 	- 2023
     - [ACTF2023](/WP/2023/ACTF2023)
+    - [ciscn2023](/WP/2023/ciscn2023)
+    - [d3ctf2023](/WP/2023/d3ctf2023)
     - [DASCTF-0psu3](/WP/2023/DASCTF-0psu3)
+    - [DASCTF2023二进制](/WP/2023/DASCTF2023二进制)
     - [hgame2024](/WP/2023/hgame2024)
     - [HitCon2023](/WP/2023/HitCon2023)
     - [N1CTF2023](/WP/2023/N1CTF2023)
     - [NepCTF2023](/WP/2023/NepCTF2023)
+    - [Others](/WP/2023/Others)
     - [TPCTF2023](/WP/2023/TPCTF2023)
     - [WMCTF2023](/WP/2023/WMCTF2023)
     - [※CTF2023](/WP/2023/※CTF2023)
@@ -17,10 +33,14 @@
     - [强网杯2023](/WP/2023/强网杯2023)
     - [极客巅峰2023](/WP/2023/极客巅峰2023)
     - [楚慧杯2023](/WP/2023/楚慧杯2023)
+    - [第六届安洵杯](/WP/2023/第六届安洵杯)
     - [绿盟杯2023](/WP/2023/绿盟杯2023)
     - [羊城杯2023](/WP/2023/羊城杯2023)
+    - [陕西省赛2023](/WP/2023/陕西省赛2023)
     - [鹏程杯2023](/WP/2023/鹏程杯2023)
 	- 2024
     - [NKCTF2024](/WP/2024/NKCTF2024)
     - [Others](/WP/2024/Others)
     - [西湖论剑2024](/WP/2024/西湖论剑2024)
+- 杂
+  - [与程序交互的问题](/杂/与程序交互的问题)
