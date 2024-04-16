@@ -1,6 +1,5 @@
 - WP
   - [ACTF2023](/WP/ACTF2023)
-  - [CTF-wp-1](/WP/CTF-wp-1)
   - [DASCTF-0psu3](/WP/DASCTF-0psu3)
   - [hgame2024](/WP/hgame2024)
   - [HitCon2023](/WP/HitCon2023)
