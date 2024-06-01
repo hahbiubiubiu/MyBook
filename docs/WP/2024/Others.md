@@ -467,3 +467,253 @@ for i in range(0, 48, 8):
 print(''.join([chr(i) for i in flag]))
 ```
 
+## easy_iot
+
+VMP的壳：
+
+![](Others/image-20240425185438549.png)
+
+直接运行程序，程序会等待输入，直接暂停程序，然后输入数据，程序就会停下来：
+
+![](Others/image-20240425185514398.png)
+
+一直执行到返回，跳出调用链，直到这里：
+
+![](Others/image-20240425185540519.png)
+
+```Python
+data = [
+	0x04, 0x0E, 0x03, 0x05, 0x19, 0x26, 0x50, 0x53, 0x51, 0x23, 
+	0x52, 0x20, 0x56, 0x21, 0x27, 0x54, 0x56, 0x55, 0x52, 0x56, 
+	0x51, 0x57, 0x51, 0x21, 0x57, 0x56, 0x55, 0x54, 0x52, 0x20, 
+	0x24, 0x24, 0x55, 0x5A, 0x57, 0x26, 0x5B, 0x1F, 0x00, 0x00
+]
+for i in data:
+	print(chr(i ^ 0x62), end="")
+```
+
+## easyshell
+
+靠包判断为冰蝎
+
+![](Others/image-20240508150943080.png)
+
+使用默认密码进行AES解密：
+
+默认密码：`e45e329feb5d925b`，IV全0
+
+![](Others/image-20240508151325091.png)
+
+第一个包解密如下：
+
+```php
+@error_reporting(0);
+function main($content)
+{
+    $result = array();
+    $result["status"] = base64_encode("success");
+    $result["msg"] = base64_encode($content);
+    @session_start();  //初始化session，避免connect之后直接background，后续getresult无法获取cookie
+
+    echo encrypt(json_encode($result));
+}
+
+function Encrypt($data)
+{
+    @session_start();
+    $key = $_SESSION['k'];
+    if(!extension_loaded('openssl'))
+    {
+        for($i=0;$i<strlen($data);$i++) {
+            $data[$i] = $data[$i]^$key[$i+1&15];
+        }
+        return $data;
+    }
+    else
+    {
+        return openssl_encrypt($data, "AES128", $key);
+    }
+}
+$content="UXhRWFBpb09IdG5Pc08zaTJMM2ZZWjE2Unl2dzQ1WVloYU5XWEhXS1l5dVJkQ2RFazVXWWJZM0RoSlpub2x4VFBXeU5JUGRPRTZ4RUdJWktybVJJcVhTSkVWNEVyeTZmcjRlYWxLbFZiZjJ4TUx3Snk5ZUxGSVdpbnh4NGZ3QW0ydjBpYXpOUmpBOXJKUzNXc1FJVjFwRjJPMXZKMEtPU0w5ZUxRRUs3bE5MZWNTQUJpM05aSTJhTXlMZzlGRERINU1jQkI0bGVQQU1vUlhWdlBDSjluSWxMTEY4UUhhTERFWFFzaWVPR3p0QzRlMms5ZWtiSWdsTEVVUlVYb2t3ZVA1VHFmOWZ1N1lveXc3OTVFRFllTVNOcXJXUktYZUhrc20yQ2p5YW5UQTVhbm9zY1NETXpQMkQ5UnM2TmtUQlBSenZxY0Yybm1qbHRHSEF2Ym1OV1hXb3RTT1lKMUhxNmRtRU5vN2g3NkpxWnRralc4a2lUQ0c5WlFwT0NkeHpOa0cwNXRobktWTURhRGdxQ0E2bENFM2t3ZXk2Njh3ZzB5ZG9LcEl3aUtjMlVPWkVVenRpTFZySDV1NEVXSENoWWNRaUZLM2hPQWp2bzZBMTFncHMyWm1KVldWNHltSUtzM0tvd1dhSVBvTzljNWVNT3BMb0swSU4yWElTU3BxbDFzaEFIWkVHS09MOTRwZGx4OUxJQ3Vsek5jM3M1NkFtdnlMTjR3dUJsM0dQUlNxYzJzMGdwS2Vmamx5Nkh6R2E3TWxtbWxmZW5xRlpaNDN6YXBHTURPcDZLQTJkUXdpS1NWWHhKbGlZbjZDWWRsWGE2d085bzE3RjlLcUpyejNmS2xYY3ZBeGhmdFNFUHpnTGhsWllXbk5weDlxbUV4cjNFZjNJaDNuRWU1cldqMXlCa0plRko5bzJxN2hkSDQ5eVBWNThqdVZoTXJSSmhpcTE3Qzg1UkhxZ3JuYmZqSmFCTEVSRzVXQ1dFOE00VDRpcWFDN0FnbXlXTEhIOFcycHE5bVBjZXczYVR4V0NBWVlPZ0QydWZsdWRhU1RTdVdqRTRlMDJ5ZzhxOHZZRW95dEpjTGRhdVlJQWJDQU5OcEdzTTBDN05YQ2ZLaktsaVpZc0o3YXNQVElaVFc1c0p3UklHbk5hUVNIRmY4aWFvZFRMUUY3QmxzRGVFQWVPTkFCTjlKc2w5NWg2SUlrMjZwSTM1YndMWWZ2VkJ4UGpJdExMazcyR0cyYXFnUHN4M2p6TDl3T0dLT2Q3MzR2ZmNBQ0RaUVZueERXN0YwWHU5TmRyUHBwbnNoTDdHd0wzUnFPVDlad3pISUM5M3ZmMDhQbDBOUFpGUW1ia3RFeE1iOVcwTkJGYjJFaUh2ZkdRc3ZweTZjWUt1cmdiSFg4TVVSVmhCTnYzSUNseDlBdVdTTFhybEppR1RGOFV2cWxiZmk0S29JMDZJZ0FrUjFKRUtsMFlBRGswajdrSncyZ1JqU0FlTmJEZ0NsZHhuVWwwQU5vaVVQNDRhenV1NjJXNVBTYUhNaDNKVmR2cWU2c21kZDZNSzlHekhFczJGTzdDMVRDeFdJS3k3dnFxOUFEQlptbFdRaDYxbVFjWXN6dVFqRjloY1R5aEs5RUgzTm96U2dGeTVVVzBMMkZUS3ZlSHZUNmNZWXFSV0lhYkNvRkJqdzNpTzFLRlVHZnBhVlk1MHl2ZkJNTjBacUxHcGVCMTRXS0taNWgwY0Z0c3RWVzVidXlhRWRuZ3M3MWtIYWFiNURqWTVubGNOSkdpSkFSSUwwNEJjS0IyYjNJckhYZEMzTmZieHptU0J3SlZBZEYyQ1N6Q1JQa1g3R2FBdklvME1QTmQ2UFFtQmlPNWYxYThvSTJaZk02bkk0b01CVmhLWTRHWElTcFkzaGtUaEN5SUhrbWVTRTRpdXoxZlZFR0liVXdJZlpBOEhCRFBsYUpXUUJxNGphOGJJVlpodHdVR2dHd3FOakRCNldka0cwdXJqclFOZVhKbXlHYXN5TGZ3bURIUVQwd0VNR3M3b3ZIZDI1emdyNGRneWF1MkoxdXdVTHR3NXZmNUpOU0NLWTRWV3hSY0pZbXJZenFUVXNQY0FZSjBIMHVzeWUwc1pLaDJ6djhSVk1OVjNCdGtFZm9nYlRmcUtOYTVUZEtUbkxlNVJhd3RDR0NWUHlqSXpBaWUyUnpzOVRQMU1KbnlCRFVkOEswZDNRRklPdDRKc2hGWU5ZbGEzcXJiWjY0R0EzRERmT2E4MEg0QXo2R0Y2cE5hUzA3ZG51a2h4VE02d1dsZ0VpT2RsNno5S1Fha3VQaXFQbG1VSkFBSlZ3MkRnaktuVGk3U0xBYVFkb3BBTlFDcHk2YThiRmlHR3VXVDVVZ0I5d3E3RFpjTE51M2RMdnJQdVhjN0dNdlJTazFRUGNWQU9QVnJrazVwTWZRU08zOTZFZGhyZzRUc0IyZUtiSDBicFhRcjFhbWFhTTVySG5UWkFTMGZURGhYZGo3U3M5THRvSDVKNFlta1VkUURCNlpjZXRncFZIS1hiY05nTWhFMXQ4ZmZ5aWswdTJJUjlaOXZDYU5xekRBMnd4OEhpclI4Q2FwZEdGMFFRVkd6dzBxMndOd2pHOVVxZDJYcTd6Z2pCdnBKaWxIN3NXQ3dHc25oMU9PeUJ0M01XU29mN2tBSHp0ZHAxVk4ySE9MSElaaVdMalVDc0tOVERTMXFGeGpGdkRqU0tLMGV6ZXhhN0lJenU0VEhlazZyMkdqSTJ4bHloY3laVDRNcUdPUUZsM0w5OXhTaEtjTnVyMzZlTDNFd3hQVHd1M216alNBWmR0U0JWUzF6V3lUaGY4UE1LWk9hSlBBSnRRZUoweWxaS0J4V2g1eEloa0NLR2RtSGV2bFV4eWZ2VFJsVWs3Q0hJSTVsM09wbENIdDd3ZmNmR3dNSTZHblpLQ3JhSFAxVm9BeDlRRG5zTjVvcklLc3ZpWTF4RXpTZ3BNNlYxNmhRQjNWRzNXeExaeXE3OEI4U0h0VW1pU1BlZXJmSE8zUjd2R2hOZTIwd1ZWenR4a2Y0U3FtUnlmbkJPVTZDb3lDZUY4V3FIYkN0bHZ5MVY2OHdQTlN3S0hVMk96eU5PZzk2aVE1WEtFY0tLZ3M2TTVHR1p2MEVMTWZBU25oYWNKT1NjYjZoYk1kdWx1UGR2WldvdFJQenhqYjVoZ1pqcDdTZW1aZzI1NTF4N2lMcHZ5NDluOGpMaTYxUzRmd05YUzZLM1F4YmNhZjJneUR6WGVySXlxNnhvbnNCdkI3dGdtclBuOW01RjJKT0I2dFVDYnZvekhSNEhLeGNWeG9iVG5jc1B1TE1ZVFpKcmRpNEwxT0JkU1NxQ2hOM2xTR3hxbm5LUXlkQ0R2NTZvUFRCYjZvbjZtU0oyNENhOEJXWnBNenB3cDFqUFlGSk5WTDNUQUQxRnd5cHN4TFJ6WjVhQTdGTGtneGtTNk84S2ZiZWtYR3VMRDFCbUlWOW9OVnRvS3NON0JKRE9oMHJZQUhxNmlCaDh2NHd3Yk5KYjhueU44WEhRVnF3dExFbW9DTXhkNVJTejZuNnVzVUVaZmxEbDlDQUt6b25QdzU5aHdDZ0hQbnpodnZ1RUoyS0ZWM2x0M2d4ckVGYzdFVzVvSmxiNzBv";$content=base64_decode($content);
+main($content);
+```
+
+解密1278和1982的内容，分别为zip文件和一个字符串。
+
+![](Others/image-20240508154059711.png)
+
+字符串为：
+
+![](Others/image-20240508154138794.png)
+
+zip文件有密码，里面有两个文件：
+
+![](Others/image-20240508154159594.png)
+
+字符串`Hello, but what you're looking for isn't me.`长度恰好与`secret2.txt`相同，且压缩后CRC相同。
+
+![](Others/image-20240508154527083.png)
+
+使用`bkcrack`进行明文攻击：
+
+* `-C`：指明加密的zip文件
+* `-c`：zip文件中知道明文的被加密的文件（文件名，不要加`./`）
+* `-p`：被加密文件的未加密版本
+* `-k`：解密得到的密钥
+
+```shell
+> D:\CTF\Tool\bkcrack-1.6.1-win64\bkcrack.exe -C .\download.zip -c secret2.txt -p .\secret2.txt
+bkcrack 1.6.1 - 2024-01-22
+[16:27:27] Z reduction using 37 bytes of known plaintext
+100.0 % (37 / 37)
+[16:27:27] Attack on 207115 Z values at index 6
+Keys: e0c271a4 cbd76d08 8d707128
+10.0 % (20671 / 207115)
+Found a solution. Stopping.
+You may resume the attack with the option: --continue-attack 20671
+[16:27:40] Keys
+e0c271a4 cbd76d08 8d707128
+
+> D:\CTF\Tool\bkcrack-1.6.1-win64\bkcrack.exe -C .\download.zip -c secret1.txt -k e0c271a4 cbd76d08 8d707128 -d secret1.txt
+bkcrack 1.6.1 - 2024-01-22
+[16:30:49] Writing deciphered data secret1.txt (maybe compressed)
+Wrote deciphered data.
+
+> cat .\secret1.txt
+flag{70854278-ea0c-462e-bc18-468c7a04a505}
+```
+
+## remaaaa
+
+有符号表，逻辑还是简单的：
+
+```C
+int __fastcall main(int argc, const char **argv, const char **envp)
+{
+    _main(argc, argv, envp);
+    Str = (char *)malloc(0x1Eui64);
+    memset(Str, 0, 0x1Eui64);
+    if ( (unsigned __int8)password(Str) )         // aaaaaaassss
+    {
+        v3 = std::operator<<<std::char_traits<char>>(refptr__ZSt4cout, Str);
+        std::ostream::operator<<(v3, refptr__ZSt4endlIcSt11char_traitsIcEERSt13basic_ostreamIT_T0_ES6_);
+        v4 = std::operator<<<std::char_traits<char>>(refptr__ZSt4cout, "Please input your flag:");
+        std::ostream::operator<<(v4, refptr__ZSt4endlIcSt11char_traitsIcEERSt13basic_ostreamIT_T0_ES6_);
+        input = (char *)malloc(0x64ui64);
+        std::operator>><char,std::char_traits<char>>(refptr__ZSt3cin, input);
+        memset(output, 0, sizeof(output));
+        key = &Str[-48 * strlen(Str) + 768];
+        generate_CK();
+        sm4_encrypt(input, key, output);
+        check(key, output);
+    }
+    return 0;
+}
+
+__int64 __fastcall password(char *a1)
+{
+    ...
+    v11 = 0x3C;
+    v12 = 0x26;
+    v13 = 0x63;
+    v14 = 0xC2;
+    v15 = 0x1E;
+    v16 = 0x72;
+    v17 = 0xCE;
+    v18 = 0x78;
+    v1 = std::operator<<<std::char_traits<char>>(refptr__ZSt4cout, "Let's play a game!");
+    std::ostream::operator<<(v1, refptr__ZSt4endlIcSt11char_traitsIcEERSt13basic_ostreamIT_T0_ES6_);
+    v2 = std::operator<<<std::char_traits<char>>(refptr__ZSt4cout, "If you win, I will give my password to you!");
+    std::ostream::operator<<(v2, refptr__ZSt4endlIcSt11char_traitsIcEERSt13basic_ostreamIT_T0_ES6_);
+    v3 = std::operator<<<std::char_traits<char>>(refptr__ZSt4cout, "Start!");
+    std::ostream::operator<<(v3, refptr__ZSt4endlIcSt11char_traitsIcEERSt13basic_ostreamIT_T0_ES6_);
+    y = 2;
+    x = 7;
+    y_aim = 6;
+    x_aim = 0;
+    v21 = 0;
+    do
+    {
+        std::operator>><char,std::char_traits<char>>(refptr__ZSt3cin, &input_chr);
+        *a1++ = input_chr;
+        if ( input_chr == 'd' )
+        {
+            if ( ++x > 7 )
+                --x;
+        }
+        else if ( input_chr > 100 )
+        {
+            if ( input_chr == 's' )
+            {
+                if ( ++y > 7 )
+                    --y;
+            }
+            else if ( input_chr == 'w' )
+            {
+                --y;
+                y += y < 0;
+            }
+        }
+        else if ( input_chr == 'a' )
+        {
+            --x;
+            x += x < 0;
+        }
+        if ( ++v21 <= 11 && y == y_aim && x == x_aim )
+        {
+            v4 = std::operator<<<std::char_traits<char>>(refptr__ZSt4cout, "You win!");
+            std::ostream::operator<<(v4, refptr__ZSt4endlIcSt11char_traitsIcEERSt13basic_ostreamIT_T0_ES6_);
+            std::operator<<<std::char_traits<char>>(refptr__ZSt4cout, "Here is the password:");
+            return 1i64;
+        }
+        if ( y == y_aim && x == x_aim )
+        {
+            v6 = std::operator<<<std::char_traits<char>>(refptr__ZSt4cout, "You lose!");
+            v7 = std::ostream::operator<<(v6, refptr__ZSt4endlIcSt11char_traitsIcEERSt13basic_ostreamIT_T0_ES6_);
+            v8 = std::operator<<<std::char_traits<char>>(v7, "Too Slow!");
+            std::ostream::operator<<(v8, refptr__ZSt4endlIcSt11char_traitsIcEERSt13basic_ostreamIT_T0_ES6_);
+            return 0i64;
+        }
+    }
+    while ( v21 <= 20 );
+    v9 = std::operator<<<std::char_traits<char>>(refptr__ZSt4cout, "You lose!");
+    std::ostream::operator<<(v9, refptr__ZSt4endlIcSt11char_traitsIcEERSt13basic_ostreamIT_T0_ES6_);
+    return 0i64;
+}
+```
+
+`password`函数很简单`aaaaaaassss`过了就好（不唯一），但长度一定为11。
+
+之后就是获取输入然后SM4加密，比较验证。
+
+主要是`key`，`key = &Str[-48 * strlen(Str) + 768];`这个获取很迷，动态调试运行，每次都不一样。
+
+猜测是有反调试的，但看了一圈没找到，直接选择附加了。
+
+程序在获取flag的时候，进行附加，然后这一次可以看到`key`为全0字节。
+
+已知走到比较验证部分：
+
+把`cipher`数据patch为`v6`的数据，直接运行就会打印`flag`了：`flag{2d8fad_980asf_k2p14o}`
+
+```C
+for ( i = 0; i <= 255; ++i )
+{
+    v8 = cipher[i] == (unsigned __int8)v6[i];
+    if ( !v8 )
+        break;
+}
+if ( v8 )
+{
+    v2 = std::operator<<<std::char_traits<char>>(refptr__ZSt4cout, "Right!Here are your flag:");
+    std::ostream::operator<<(v2, refptr__ZSt4endlIcSt11char_traitsIcEERSt13basic_ostreamIT_T0_ES6_);
+    sm4_decrypt(cipher, key, v5);
+    return printf("%s\n", (const char *)v5);
+}
+else
+{
+    v4 = std::operator<<<std::char_traits<char>>(refptr__ZSt4cout, "Wrong!");
+    return std::ostream::operator<<(v4, refptr__ZSt4endlIcSt11char_traitsIcEERSt13basic_ostreamIT_T0_ES6_);
+}
+```
+

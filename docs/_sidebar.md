@@ -1,7 +1,9 @@
 - Algorithm
   - [动态规划](/Algorithm/动态规划)
-- Cipher
-  - [白盒AES](/Cipher/白盒AES)
+- Crypto
+  - [RSA题型总结](/Crypto/RSA题型总结)
+  - [白盒AES](/Crypto/白盒AES)
+  - [背包密码](/Crypto/背包密码)
 - Linux
   - [ptrace](/Linux/ptrace)
 - MISC
@@ -10,10 +12,14 @@
   - [PWN](/PWN/PWN)
   - [tool](/PWN/tool)
 - Reverse
+  - [c++异常处理](/Reverse/c++异常处理)
   - [DWARF](/Reverse/DWARF)
   - [frida](/Reverse/frida)
   - [PYC解析](/Reverse/PYC解析)
   - [天堂之门原理](/Reverse/天堂之门原理)
+- Web
+  - [PHP](/Web/PHP)
+  - [Python Pickle 序列化](/Web/Python Pickle 序列化)
 - WP
   - 2023
     - [ACTF2023](/WP/2023/ACTF2023)
@@ -41,8 +47,17 @@
     - [陕西省赛2023](/WP/2023/陕西省赛2023)
     - [鹏程杯2023](/WP/2023/鹏程杯2023)
   - 2024
+    - [CISCN](/WP/2024/CISCN)
+    - [d3CTF](/WP/2024/d3CTF)
+    - [ISCC](/WP/2024/ISCC)
     - [NKCTF2024](/WP/2024/NKCTF2024)
     - [Others](/WP/2024/Others)
+    - [京麒CTF](/WP/2024/京麒CTF)
+    - [数信杯](/WP/2024/数信杯)
+    - [第三届广东省网络安全竞赛](/WP/2024/第三届广东省网络安全竞赛)
+    - [第二届黄河流域网络安全技能挑战赛](/WP/2024/第二届黄河流域网络安全技能挑战赛)
     - [西湖论剑2024](/WP/2024/西湖论剑2024)
 - 杂
   - [与程序交互的问题](/杂/与程序交互的问题)
+  - [第一行代码-0](/杂/第一行代码-0)
+  - [第一行代码-1](/杂/第一行代码-1)
