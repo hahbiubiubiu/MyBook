@@ -1,5 +1,12 @@
 - Algorithm
+  - [刷刷题](/Algorithm/刷刷题)
   - [动态规划](/Algorithm/动态规划)
+  - [基本算法](/Algorithm/基本算法)
+  - challenge
+    - [challenge1](/Algorithm/challenge/challenge1)
+    - [challenge2](/Algorithm/challenge/challenge2)
+    - [challenge3](/Algorithm/challenge/challenge3)
+    - [动态规划](/Algorithm/challenge/动态规划)
 - Crypto
   - [RSA题型总结](/Crypto/RSA题型总结)
   - [白盒AES](/Crypto/白盒AES)
@@ -14,12 +21,15 @@
 - Reverse
   - [c++异常处理](/Reverse/c++异常处理)
   - [DWARF](/Reverse/DWARF)
-  - [frida](/Reverse/frida)
+  - [JS逆向](/Reverse/JS逆向)
   - [PYC解析](/Reverse/PYC解析)
   - [天堂之门原理](/Reverse/天堂之门原理)
+  - Android
+    - [Android](/Reverse/Android/Android)
+    - [frida](/Reverse/Android/frida)
 - Web
   - [PHP](/Web/PHP)
-  - [Python Pickle 序列化](/Web/Python Pickle 序列化)
+  - [Python-Pickle-序列化](/Web/Python-Pickle-序列化)
 - WP
   - 2023
     - [ACTF2023](/WP/2023/ACTF2023)
@@ -50,14 +60,25 @@
     - [CISCN](/WP/2024/CISCN)
     - [d3CTF](/WP/2024/d3CTF)
     - [ISCC](/WP/2024/ISCC)
+    - [N1CTF](/WP/2024/N1CTF)
     - [NKCTF2024](/WP/2024/NKCTF2024)
     - [Others](/WP/2024/Others)
     - [京麒CTF](/WP/2024/京麒CTF)
+    - [四川省赛](/WP/2024/四川省赛)
+    - [巅峰极客](/WP/2024/巅峰极客)
+    - [强网杯](/WP/2024/强网杯)
     - [数信杯](/WP/2024/数信杯)
+    - [杂](/WP/2024/杂)
+    - [矩阵杯](/WP/2024/矩阵杯)
     - [第三届广东省网络安全竞赛](/WP/2024/第三届广东省网络安全竞赛)
     - [第二届黄河流域网络安全技能挑战赛](/WP/2024/第二届黄河流域网络安全技能挑战赛)
+    - [羊城杯](/WP/2024/羊城杯)
     - [西湖论剑2024](/WP/2024/西湖论剑2024)
+    - [长城杯](/WP/2024/长城杯)
 - 杂
+  - [DNS](/杂/DNS)
+  - [OVAA复现](/杂/OVAA复现)
+  - [report](/杂/report)
   - [与程序交互的问题](/杂/与程序交互的问题)
   - [第一行代码-0](/杂/第一行代码-0)
   - [第一行代码-1](/杂/第一行代码-1)

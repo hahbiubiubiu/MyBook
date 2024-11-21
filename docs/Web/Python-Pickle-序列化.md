@@ -1,6 +1,6 @@
 ### pickle
 
-![](Python Pickle 序列化/v2-c01327e7df64f9e3ccd13a9e19f72875_720w.png)
+![](Python-Pickle-序列化/v2-c01327e7df64f9e3ccd13a9e19f72875_720w.png)
 
 注意：自己定义的class，一定要把初值写进`__init__`。
 
@@ -8,7 +8,7 @@
 
 利用`pickletools`可以反汇编一个已经被打包的字符串、优化一个已经被打包的字符串、返回一个迭代器来供程序使用。
 
-![](Python Pickle 序列化/v2-5a4aedd8db8446ba20bd0421d5e1288a_720w.webp)
+![](Python-Pickle-序列化/v2-5a4aedd8db8446ba20bd0421d5e1288a_720w.webp)
 
 1. `\x80`：机器立刻再去字符串读取一个字节，得到协议号。
 2. `c`：GLOBAL操作符，连续读取两个字符串，规定以`\n`为分割，接下来把其压进栈。
@@ -85,11 +85,11 @@ class obj():
 
 逻辑：如果`inst`拥有`__setstate__`方法，则把`state`交给`__setstate__`方法来处理；否则的话，直接把`state`这个`dist`的内容，合并到`inst.__dict__ `里面。
 
-![](Python Pickle 序列化/v2-ae7ce8d82f16d90bda791e4bc5e06f1d_720w.png)
+![](Python-Pickle-序列化/v2-ae7ce8d82f16d90bda791e4bc5e06f1d_720w.png)
 
 如果对象原先是没有`__setstate__`这个方法的，那么利用`{'__setstate__': os.system}`来BUILE这个对象，那么现在对象的`__setstate__`就变成了`os.system`；接下来利用`"ls /"`来再次BUILD这个对象，则会执行`setstate("ls /")` ，而此时`__setstate__`已经被设置为`os.system`，因此实现了RCE。
 
-![](Python Pickle 序列化/v2-5f6f6661a916b296e3fac6fbed8427cc_720w.png)
+![](Python-Pickle-序列化/v2-5f6f6661a916b296e3fac6fbed8427cc_720w.png)
 
 #### pker
 
