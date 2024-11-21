@@ -9,6 +9,7 @@
     - [动态规划](/Algorithm/challenge/动态规划)
 - Crypto
   - [RSA题型总结](/Crypto/RSA题型总结)
+  - [SM4算法实现](/Crypto/SM4算法实现)
   - [白盒AES](/Crypto/白盒AES)
   - [背包密码](/Crypto/背包密码)
 - Linux
@@ -23,7 +24,10 @@
   - [DWARF](/Reverse/DWARF)
   - [JS逆向](/Reverse/JS逆向)
   - [PYC解析](/Reverse/PYC解析)
+  - [wechat](/Reverse/wechat)
+  - [基于AST的Python源代码混淆](/Reverse/基于AST的Python源代码混淆)
   - [天堂之门原理](/Reverse/天堂之门原理)
+  - [某奇艺APP逆向](/Reverse/某奇艺APP逆向)
   - Android
     - [Android](/Reverse/Android/Android)
     - [frida](/Reverse/Android/frida)
