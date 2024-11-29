@@ -26,3 +26,6 @@ if __name__ == '__main__':
     print(content)
     with open('_sidebar.md', 'w', encoding='utf-8') as file:
         file.write(content)
+# git add .
+# git commit -m "2024-4-16 21:07"
+# git push -u origin main

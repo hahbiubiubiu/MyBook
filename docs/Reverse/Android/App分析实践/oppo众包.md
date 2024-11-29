@@ -6,11 +6,11 @@
 
 配置burpsuite：
 
-![](report/image-20240606163652265.png)
+![](oppo众包/image-20240606163652265.png)
 
 配置模拟器：
 
-![](report/image-20240606163717913.png)
+![](oppo众包/image-20240606163717913.png)
 
 然后安装证书，这一步看网上的方法（模拟器访问burp，下载证书，然后安装）不成功
 
@@ -42,23 +42,23 @@ reboot
 
 ### 分析功能
 
-![](report/image-20240606210215593.png)
+![](oppo众包/image-20240606210215593.png)
 
 点击修改微信号，然后输入，app会发送向`/api/app/user/auth/insertCrowdPortra`网络数据包。
 
-![](report/image-20240606210238371.png)
+![](oppo众包/image-20240606210238371.png)
 
 发送相同微信号的数据包的`Reqsign`和`Timestamp`不一样：
 
-![](report/image-20240606210448254.png)
+![](oppo众包/image-20240606210448254.png)
 
 输入不同微信号时，`userValue`、`Reqsign`、`Timestamp`都不一样：
 
-![](report/image-20240606210555716.png)
+![](oppo众包/image-20240606210555716.png)
 
 篡改`userValue`，会导致回复签名错误：
 
-![](report/image-20240606210643121.png)
+![](oppo众包/image-20240606210643121.png)
 
 ### 分析代码
 
@@ -68,15 +68,15 @@ reboot
 
 搜索api：
 
-![](report/image-20240606195729780.png)
+![](oppo众包/image-20240606195729780.png)
 
 只有一个结果：
 
-![](report/image-20240606195754577.png)
+![](oppo众包/image-20240606195754577.png)
 
 查找`c`的用例，也是只有一个：
 
-![](report/image-20240606195919474.png)
+![](oppo众包/image-20240606195919474.png)
 
 上面的逻辑就是查找`key`，然后获取输入，进行加密，然后结果添加到`list`中，应该是`request`的`list`。
 
@@ -134,7 +134,7 @@ Java.perform(function() {
 
 得到密钥：`zbLoginJwt@20221`
 
-![](report/image-20240606200801246.png)
+![](oppo众包/image-20240606200801246.png)
 
 ##### 自行加密
 
@@ -203,7 +203,7 @@ public class test {
 
 搜索`Reqsign`，其实就一个，其他都是`reqsignin`。
 
-![](report/image-20240606205453094.png)
+![](oppo众包/image-20240606205453094.png)
 
 i7.b.d为生成md5，实际内容为b10。
 
@@ -222,7 +222,7 @@ Java.perform(function() {
 
 输入两个一样的微信号，只有时间戳是不同的：
 
-![](report/image-20240606211400526.png)
+![](oppo众包/image-20240606211400526.png)
 
 这个签名包含的信息有时间戳、URL、请求体。
 
@@ -316,11 +316,11 @@ public class test {
 
 结果如下：
 
-![](report/image-20240606212456300.png)
+![](oppo众包/image-20240606212456300.png)
 
 根据其生成结果尝试发送数据包，成功伪造：
 
-![](report/image-20240606212604051.png)
+![](oppo众包/image-20240606212604051.png)
 
 ## app发送修改微信号请求的逻辑
 
@@ -587,9 +587,9 @@ public static /* synthetic */ void k(UserInfoDialog userInfoDialog, View view) {
 
 可以看出`p`是由点击事件触发的，根据sure，应该就是为确定按钮了。
 
-![](report/image-20240606220204578.png)
+![](oppo众包/image-20240606220204578.png)
 
-![](report/image-20240606220257585.png)
+![](oppo众包/image-20240606220257585.png)
 
 ## Frida对关键函数的主动调用
 
@@ -627,7 +627,7 @@ Java.perform(function () {
 
 可以看出其恒为`2`。
 
-![](report/image-20240607084616670.png)
+![](oppo众包/image-20240607084616670.png)
 
 由于该方法不为静态方法，因此去内存中寻找`ChangeInfoActivity`实例，然后调用其`p0`方法。
 
@@ -659,12 +659,12 @@ Java.perform(function () {
 
 然后运行，输出为：
 
-![](report/image-20240607084917193.png)
+![](oppo众包/image-20240607084917193.png)
 
 burpsuite抓包可以看见其成功发出数据包，并且没有报签名错误。
 
-![](report/image-20240607084954630.png)
+![](oppo众包/image-20240607084954630.png)
 
 解密`userValue`可以看出是我们的`B1ubiu--2024`
 
-![](report/image-20240607085036380.png)
+![](oppo众包/image-20240607085036380.png)
