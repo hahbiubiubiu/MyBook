@@ -1,4 +1,15 @@
+# DNS服务器版本信息查询
 
+1. **hostname.bind**:
+   - 用于获取DNS服务器的主机名。在BIND中，可以通过发送一个针对`CH TXT "hostname.bind."`的请求来尝试获取该DNS服务器的主机名称。
+2. **id.server**:
+   - 用于获得DNS服务器的身份标识符。这通常是一个唯一的字符串，可以帮助识别具体的DNS服务器实例。通过向DNS服务器发送`CH TXT "id.server."`请求可以得到这个标识符。
+3. **version.server**:
+   - 用于获取DNS服务器软件的版本号。通过发送`CH TXT "version.server."`请求给DNS服务器，可以获得当前正在运行的DNS服务器软件版本信息。
+4. **version.bind**:
+   - 这个查询特别指BIND DNS软件的版本信息。与`version.server`类似，但更具体地指向BIND实现。通过发送`CH TXT "version.bind."`请求可以直接获取BIND的具体版本号。
+
+# DNS查询-C实现
 
 ```c
 #include <stdio.h>

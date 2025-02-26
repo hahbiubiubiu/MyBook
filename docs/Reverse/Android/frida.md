@@ -19,26 +19,36 @@
 3. Python脚本方式
 
    1. ```python
-      import frida  #导入frida模块
-      import sys    #导入sys模块
+      import frida
+      import sys
       
-      jscode = """  #从此处开始定义用来Hook的javascript代码
-          Java.perform(function(){  
-              var MainActivity = Java.use('com.example.testfrida.MainActivity'); //获得MainActivity类
-              MainActivity.testFrida.implementation = function(){ //Hook testFrida函数，用js自己实现
-                  send('Statr! Hook!'); //发送信息，用于回调python中的函数
-                  return 'Change String!' //劫持返回值，修改为我们想要返回的字符串
-              }
-          });
-      """
+      def on_message(message, data):
+          if message['type'] == 'send':
+              print(f"Received data: {message['payload']}")
+          elif message['type'] == 'error':
+              print(f"Error: {message['stack']}")
       
-      def on_message(message,data): #js中执行send函数后要回调的函数
-          print(message)
+      device = frida.get_usb_device(timeout=10)
+      print(device.name)
+      session = device.attach("ezapk")
       
-      process = frida.get_remote_device().attach('com.example.testfrida') #得到设备并劫持进程com.example.testfrida（该开始用get_usb_device函数用来获取设备，但是一直报错找不到设备，改用get_remote_device函数即可解决这个问题）
-      script = process.create_script(jscode) #创建js脚本
-      script.on('message',on_message) #加载回调函数，也就是js中执行send函数规定要执行的python函数
-      script.load() #加载脚本
+      script = session.create_script("""
+      Java.perform(function () {
+          function arrayBufferToHex(arrayBuffer) {
+              return Array.from(new Uint8Array(arrayBuffer))
+                          .map(b => b.toString(16).padStart(2, '0'))
+                          .join('');
+          }
+          var startAddress = ptr('0x6f03276000'); // 起始地址
+          var endAddress = ptr('0x6f0327a000');  // 结束地址
+          var size = endAddress.sub(startAddress).toInt32(); // 计算内存大小
+          var data = Memory.readByteArray(startAddress, size);
+          var hexString = arrayBufferToHex(data);
+          send(hexString);
+      });
+      """)
+      script.on('message', on_message)
+      script.load()
       sys.stdin.read()
       ```
 
@@ -146,13 +156,12 @@
    2. 创建实例再调用
    
       1. ```js
-        Java.perform(function () {
-         console.log("start");
-         var Main = Java.use("com.galaxylab.countdown");
-         let test = Main.$new();
-         console.log(test.stringFromJNI(208462));
-        })
-        ```
+          Java.perform(function () {
+             console.log("start");
+             var Main = Java.use("com.galaxylab.countdown");
+             let test = Main.$new();
+             console.log(test.stringFromJNI(208462));
+         })
 
 # frida持久化
 
@@ -556,6 +565,46 @@ function hook_android_dlopen_ext() {
     );
 }
 ```
+
+## 获取进程内存地址
+
+```python
+import frida
+import sys
+
+def on_message(message, data):
+    if message['type'] == 'send':
+        print(f"Received data: {message['payload']}")
+        with open("dump.bin", "wb") as f:
+            f.write(bytes.fromhex(message['payload']))
+    elif message['type'] == 'error':
+        print(f"Error: {message['stack']}")
+
+device = frida.get_usb_device(timeout=10)
+print(device.name)
+session = device.attach("ezapk")
+
+script = session.create_script("""
+Java.perform(function () {
+    function arrayBufferToHex(arrayBuffer) {
+        return Array.from(new Uint8Array(arrayBuffer))
+                    .map(b => b.toString(16).padStart(2, '0'))
+                    .join('');
+    }
+    var startAddress = ptr('0x6f03276000'); // 起始地址
+    var endAddress = ptr('0x6f0327b000');  // 结束地址
+    var size = endAddress.sub(startAddress).toInt32(); // 计算内存大小
+    var data = Memory.readByteArray(startAddress, size);
+    var hexString = arrayBufferToHex(data);
+    send(hexString);
+});
+""")
+script.on('message', on_message)
+script.load()
+sys.stdin.read()
+```
+
+
 
 # objection
 

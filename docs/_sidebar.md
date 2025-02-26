@@ -1,5 +1,8 @@
 - AI
+  - [torchattacks教程](/AI/torchattacks教程)
+  - [图神经网络](/AI/图神经网络)
   - [对抗样本](/AI/对抗样本)
+  - [无监督学习](/AI/无监督学习)
 - Algorithm
   - [刷刷题](/Algorithm/刷刷题)
   - [动态规划](/Algorithm/动态规划)
@@ -50,6 +53,7 @@
       - [陕西省赛2023](/CTF/WP/2023/陕西省赛2023)
       - [鹏程杯2023](/CTF/WP/2023/鹏程杯2023)
     - 2024
+      - [ciscn&ccb](/CTF/WP/2024/ciscn&ccb)
       - [CISCN](/CTF/WP/2024/CISCN)
       - [d3CTF](/CTF/WP/2024/d3CTF)
       - [ISCC](/CTF/WP/2024/ISCC)
@@ -59,6 +63,7 @@
       - [SCTF](/CTF/WP/2024/SCTF)
       - [京麒CTF](/CTF/WP/2024/京麒CTF)
       - [四川省赛](/CTF/WP/2024/四川省赛)
+      - [国城杯](/CTF/WP/2024/国城杯)
       - [巅峰极客](/CTF/WP/2024/巅峰极客)
       - [强网杯](/CTF/WP/2024/强网杯)
       - [数信杯](/CTF/WP/2024/数信杯)
@@ -75,6 +80,7 @@
   - Android
     - [Android](/Reverse/Android/Android)
     - [frida](/Reverse/Android/frida)
+    - [小米10s刷root](/Reverse/Android/小米10s刷root)
     - App分析实践
       - [oppo众包](/Reverse/Android/App分析实践/oppo众包)
       - [OVAA复现](/Reverse/Android/App分析实践/OVAA复现)
@@ -83,14 +89,24 @@
     - 第一行代码
       - [第一行代码-0](/Reverse/Android/第一行代码/第一行代码-0)
       - [第一行代码-1](/Reverse/Android/第一行代码/第一行代码-1)
+  - IDA
+    - [Appcall](/Reverse/IDA/Appcall)
   - Others
+    - [angr](/Reverse/Others/angr)
     - [c++异常处理](/Reverse/Others/c++异常处理)
     - [DWARF](/Reverse/Others/DWARF)
+    - [Windows驱动](/Reverse/Others/Windows驱动)
     - [天堂之门原理](/Reverse/Others/天堂之门原理)
+    - LLVM
+      - [LLVM1](/Reverse/Others/LLVM/LLVM1)
+      - [OLLVM](/Reverse/Others/LLVM/OLLVM)
   - Python
     - [PYC解析](/Reverse/Python/PYC解析)
+    - [pyd逆向](/Reverse/Python/pyd逆向)
     - [基于AST的Python源代码混淆](/Reverse/Python/基于AST的Python源代码混淆)
 - 杂
   - [DNS](/杂/DNS)
+  - [jiutian脚本](/杂/jiutian脚本)
   - [ptrace](/杂/ptrace)
+  - [weibo脚本](/杂/weibo脚本)
   - [与程序交互的问题](/杂/与程序交互的问题)

@@ -195,3 +195,45 @@ apktool.bat b .\target
    1. 在反编译apk的时候加上`-r`参数：`apktool -r d target.apk -o target`
    2. 加上`-r`参数不会反编译资源文件，在再次打包时就不会报资源找不到的错误
 2. 
+
+# 调试
+
+## so调试
+
+1. 设备的`ro.debuggable`需为`1`
+   1. `magisk resetprop ro.debuggable 1; stop; start;`
+2. 设备启动`android_server`，在本地的`23946`端口监听
+   1. 若是使用真机，这里的本地，指的是手机的网络，需要使用`adb forward tcp:23946 tcp:23946`
+   2. 若是使用模拟器，则不需要
+3. 以调试模式启动程序`adb shell am start -D -n com.n1ctf2024.ezapk/.MainActivity`
+4. IDA设置`localhost`，开始Attach
+5. 此时，IDA进入调试，APK仍`waiting for debugger`
+6. 打开ddms（`...\android-sdk-windows\tools\ddms.bat`）查看端口
+   1. 当 JVM 启动时，如果启用了调试模式，它会监听指定的端口以等待调试器（如 JDB）的连接。
+   2. `8677`是调试端口，`8700`是ddms给的映射端口
+   3. ![](Android/image-20241211143644053.png)
+7. jdb连接：` jdb -connect com.sun.jdi.SocketAttach:port=8700,hostname=localhost`
+   1. ddms还挂着的时候，可以使用`8700`
+   1. 不然使用`8677`
+
+
+
+# Android证书（真机）
+
+burpsuit下载证书，保存为cer，导入到手机。
+
+![](Android/image-20250223131547533.png)
+
+1. 用户：
+   1. 导入Android；
+   2. Android安装证书；
+2. 系统：
+   1. `openssl x509 -inform DER -in .\bp.cer -out .\bp.pem`
+   2. `openssl x509 -inform PEM -subject_hash_old -in .\bp.pem` 得到哈希值：`9a5ba575`，重命名为 `9a5ba575.0`
+   3. 移至 `/system/etc/security/cacerts/`
+      1. 需要 `/system` 的读写权限
+   4. `chmod 644 9a5ba575.0; chgrp root 9a5ba575.0`
+3. Android设置代理为电脑IP及端口。
+
+
+

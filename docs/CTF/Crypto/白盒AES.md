@@ -12,123 +12,156 @@
 
 ## AES加密流程
 
-![](白盒AES/d0fc83215e3c4314adff30b7f2509ebd.png)
+首先看一下AES的加密流程：
+
+![加密与解密3](白盒AES/加密与解密3-17340970036121.png)
+
+其伪代码如下：
+
+```
+state ← plaintext
+AddRoundKey(state, k0)
+for r = 1 ... 9
+    SubBytes(state)
+    ShiftRows(state)
+    MixColumns(state)
+    AddRoundKey(state, kr)
+SubBytes(state)
+ShiftRows(state)
+AddRoundKey(state, k10)
+ciphertext ← state
+```
 
 ## 基于表实现的AES实现
 
-### 改变正常AES流程
+基于表实现的AES的思路：将大部分的运算通过查表实现。
 
-1. $$AddRoundKey(state,k_0)$$放入循环，$$AddRoundKey(state,k_9)$$移出循环
-2. `ShiftRow`是线性变换，`SubBytes`是映射变换，可以调换位置而不影响结果
+通过预先生成的表来进行加密。
+
+### 调整AES流程
+
+1. $$AddRoundKey(state,k_0)$$ 放入循环，$$AddRoundKey(state,k_9)$$ 移出循环
+2. `ShiftRow` 是线性变换，`SubBytes` 是映射变换，可以调换位置而不影响结果
 3. 在轮密钥也进行行移位的情况下，`AddRoundKey`和`ShiftRow`调换位置且结果不变
 
-改变后，AES流程如下：
+改变后，AES加密流程伪代码如下：
 
-![](白盒AES/5ee48cb3efc747f79de94ace48a366aa.png)
+```
+state ← plaintext
+for r = 1 ... 9
+    ShiftRows(state)
+    AddRoundKey(state, k_{r-1})
+    SubBytes(state)
+    MixColumns(state)
+ShiftRows(state)
+AddRoundKey(state, k_9)
+SubBytes(state)
+AddRoundKey(state, k_{10})
+ciphertext ← state
+```
 
 ### 生成表
 
-#### T-boxs
+#### T Boxs
 
-看`AddRoundKey`和`SubBytes`两个过程，可以合并为一个过程
+看 `AddRoundKey` 和 `SubBytes` 两个过程：
 $$
 AddRoundKey(x, \hat{k_{i-1}}[i]) = x \oplus \hat{k_{i-1}}[i]\\
-SubBytes(x) = Sbox(x)\\
+SubBytes(x) = Sbox(x)
+$$
+可以合并为一个过程：
+$$
 {T_i}^r(x)= S(x \oplus \hat{k_{r-1}}[i]) (i=0...15, r=1...9)\\
 {T_i}^{10}(x)= S(x \oplus \hat{k_{9}}[i])\oplus k_{10}[i] (i=0...15)
 $$
-可以看出Tbox是一个`10*16*256`的表，即可实现这两个过程的基于表的实现
+可以看出 Tbox 是一个 `10*16*256` 的表，即可将这两个过程的基于表的实现：
 
 ```C
-u8 TBoxes[10][16][256];
-void GetTbox(u8 key[176]) {
-    for (int r = 0; r <= 9; r++) {//轮数
-        shiftRows (key + 16*r);
-        for (int index = 0; index < 16; index++)//字节数
-        {
-            for (int x = 0; x < 256; x++) {//0-255
-                TBoxes[r][index][x] = SBox[x^key[16 * r + index]];
-                if (r == 9) {
-                    TBoxes[r][index][x] = 
-                        TBoxes[r][index][x] ^ key[16 * (r + 1) + index];
-                }
-            }
+void add_round_key(u8 state[16], u32 expandedKey[4]) {
+    for (int i = 0; i < 4; i++)
+        for (int j = 0; j < 4; j++)
+            state[i * 4 + j] ^= (expandedKey[i] >> (24 - 8 * j)) & 0xFF;
+}
+
+void getTbox(u32 expandedKey[44], u8 tbox[10][16][256]) {
+    for (int i = 0; i < 10; i++) {
+        for (int x = 0; x < 256; x++) {
+            u8 state[16] = {x};
+            memset(state, x, 16);
+            add_round_shiftkey(state, expandedKey + 4 * i);
+            subByte(state);
+            if (i == 9)
+                add_round_key(state, expandedKey + 40);
+            for (int z = 0; z < 16; z++)
+                tbox[i][z][x] = state[z];
         }
     }
 }
 ```
 
-#### Tyi_tables
+#### Tyi Tables
 
-在`MixColumns`中，实际可以看作这么一个过程：
+在 `MixColumns` 中，实际可以看作这么一个过程：
 
 ![](白盒AES/image-20231230150842342.png)
 
-对16Byte的矩阵的列进行操作。
+对 `16 Byte` 的矩阵的列进行操作：
 
 ![](白盒AES/970d3ae9c2a94d4da7fc463bec2cf254.png)
 $$
 MixColumns:T_{y_0}(x) \oplus T_{y_1}(x) \oplus Ty_{y_2}(x) \oplus Ty_{y_3}(x)
 $$
 
+这里遍历的 `i` 为可能的输入。
+
+`table[x][y][z]` 为：第 `4 * x + z ` 的输入为`y` 时的输出（正常 `MixColumns` 加密输入 16 个字节的数据）。
+
 ```C
-u32 TyiTables[4][256];
-void GetTyiTable() {
-    for (int x = 0; x < 256; x++) {
-        TyiTables[0][x] = 
-            (gMul(2, x) << 24) | (x << 16) | (x << 8) | gMul(3, x);
-        TyiTables[1][x] = 
-            (gMul(3, x) << 24) | (gMul(2, x) << 16) | (x << 8) | x;
-        TyiTables[2][x] = 
-            (x << 24) | (gMul(3, x) << 16) | (gMul(2, x) << 8) | x;
-        TyiTables[3][x] = 
-            (x << 24) | (x << 16) | (gMul(3, x) << 8) | gMul(2, x);
-    }
-}
-```
-
-这里的`gMul`：
-
-```Rust
-fn gmul(ap: u8, bp: u8) -> u8 {
-    let mut p = 0u8;
-    let mut a = ap;
-    let mut b = bp;
-    while a != 0 && b != 0 {
-        if b & 1 != 0 {
-            p ^= a;
-        }
-        if a & 0x80 != 0 {
-            // XOR with the primitive polynomial x^8 + x^4 + x^3 + x + 1 (0b1_0001_1011) – you can change it but it must be irreducible
-            a = (((a << 1) as u16) ^ 0x11b) as u8;
-        } else {
-            a = a << 1;
-        }
+u8 gmul(u8 ap, u8 bp) {
+    u8 p = 0, a = ap, b = bp;
+    while (a != 0 && b != 0) {
+        if (b & 1 != 0) p ^= a;
+        if ((a & 0x80) != 0)
+            a = (a << 1) ^ 0x1b;
+        else
+            a <<= 1;
         b >>= 1;
     }
     return p & 0xFF;
 }
+
+void getTyiTable(u8 table[4][256][4]) {
+    for (int i = 0; i < 256; i++)
+    {
+        table[0][i][0] = gmul(i, 0x02);
+        table[0][i][1] = gmul(i, 0x03);
+        table[0][i][2] = i;
+        table[0][i][3] = i;
+        table[1][i][0] = i;
+        table[1][i][1] = gmul(i, 0x02);
+        table[1][i][2] = gmul(i, 0x03);
+        table[1][i][3] = i;
+        table[2][i][0] = i;
+        table[2][i][1] = i;
+        table[2][i][2] = gmul(i, 0x02);
+        table[2][i][3] = gmul(i, 0x03);
+        table[3][i][0] = gmul(i, 0x03);
+        table[3][i][1] = i;
+        table[3][i][2] = i;
+        table[3][i][3] = gmul(i, 0x02);
+    }
+}
 ```
 
-#### xorTable
+#### Xor Table
 
-这里的`Xor table`感觉适合`Tyi_tables`是一起的，一起组成`MixColumns`的过程。
-
-`Xor tables`用于对于每轮当中的两个半字节进行一个查表的异或运算。
-`Xor tables[9][96][16][16]`：其中9为轮数，96为一轮所需的异或次数，16、16为4bit数所有可能值。
+这里的 `Xor table` 和 `Tyi_tables `是一起的，一起组成 `MixColumns` 的过程。
 
 ```C
-u8 xorTable[9][96][16][16]
-void GetxorTable() {
-	for (int i = 0; i < 9; i++) {
-		for (int j = 0; j < 96; j++) {
-			for (int x = 0; x < 16; x++) { //2的4次方=16
-				for (int y = 0; y < 16; y++) {
-					xorTable[i][j][x][y] = x^y;
-				}
-			}
-		}
-	}
+void getXorTable(u8 table[16][16]) {
+    for (int i = 0; i < 16; i++)
+        for (int j = 0; j < 16; j++)
+            table[i][j] = i ^ j;
 }
 ```
 
@@ -137,74 +170,77 @@ void GetxorTable() {
 将两个查表操作合在一起：
 
 ```C
-u32 TyiBoxes[9][16][256];
-void GetTyiBoxs() {
-    for (int r = 0; r < 9; r++) {
-        for (int  index = 0; index < 16; index++)
-        {
-            for (int x = 0; x < 256; x++)
-            {
-                u8 t = TBoxes[r][index][x];
-                TyiBoxes[r][index][x] = TyiTables[index % 4][t];
-            }
-        }
-    }
+void getTyiBox(u8 tbox[10][16][256], u32 tyibox[9][16][256]) {
+    u8 tyitable[4][256][4] = {0};
+    getTyiTable(tyitable);
+    for (int r = 0; r < 9; r++)
+        for (int x = 0; x < 256; x++)
+            for (int j = 0; j < 4; j++)
+                for (int i = 0; i < 4; i++) {
+                    u32 v0 = tyitable[0][tbox[r][j * 4 + i][x]][i];
+                    u32 v1 = tyitable[1][tbox[r][j * 4 + i][x]][i];
+                    u32 v2 = tyitable[2][tbox[r][j * 4 + i][x]][i];
+                    u32 v3 = tyitable[3][tbox[r][j * 4 + i][x]][i];
+                    tyibox[r][j * 4 + i][x] = (v0 << 24) | (v1 << 16) | (v2 << 8) | v3;
+                }
 }
 ```
 
 #### 总实现
 
 ```C
-void Table_encrypt(u8 input[16], u8 output[16]) {
+
+void aes_encrypt_by_table(u8 input[16], u8 key[16]) {
     u32 a, b, c, d, aa, bb, cc, dd;
-    for (int i = 0; i < 9; i++) {
+    u8 result[16] = {0};
+    u8 tbox[10][16][256] = {0}, xortable[16][16] = {0};
+    u32 expandedKey[44] = {0}, tyibox[9][16][256] = {0};
+    expandKey(key, expandedKey);
+    getTbox(expandedKey, tbox);
+    getTyiBox(tbox, tyibox);
+    getXorTable(xortable);
+
+
+    for (int i = 0; i < 9; i++)
+    {
         shiftRows(input);
-        for (int j = 0; j < 4; j++) {
-            a = TyiBoxes[i][4 * j + 0][input[4 * j + 0]];
-            b = TyiBoxes[i][4 * j + 1][input[4 * j + 1]];
-            c = TyiBoxes[i][4 * j + 2][input[4 * j + 2]];
-            d = TyiBoxes[i][4 * j + 3][input[4 * j + 3]];
-            aa = xorTable[i][24 * j + 0][(a >> 28) & 0xf][(b >> 28) & 0xf];
-            bb = xorTable[i][24 * j + 1][(c >> 28) & 0xf][(d >> 28) & 0xf];
-            cc = xorTable[i][24 * j + 2][(a >> 24) & 0xf][(b >> 24) & 0xf];
-            dd = xorTable[i][24 * j + 3][(c >> 24) & 0xf][(d >> 24) & 0xf];
-            input[4 * j + 0] = 
-                xorTable[i][24 * j + 4][aa][bb] << 4 | 
-                xorTable[i][24 * j + 5][cc][dd];
-            aa = xorTable[i][24 * j + 6][(a >> 20) & 0xf][(b >> 20) & 0xf];
-            bb = xorTable[i][24 * j + 7][(c >> 20) & 0xf][(d >> 20) & 0xf];
-            cc = xorTable[i][24 * j + 8][(a >> 16) & 0xf][(b >> 16) & 0xf];
-            dd = xorTable[i][24 * j + 9][(c >> 16) & 0xf][(d >> 16) & 0xf];
-            input[4 * j + 1] = 
-                xorTable[i][24 * j + 10][aa][bb] << 4 | 
-                xorTable[i][24 * j + 11][cc][dd];
-            aa = xorTable[i][24 * j + 12][(a >> 12) & 0xf][(b >> 12) & 0xf];
-            bb = xorTable[i][24 * j + 13][(c >> 12) & 0xf][(d >> 12) & 0xf];
-            cc = xorTable[i][24 * j + 14][(a >> 8) & 0xf][(b >> 8) & 0xf];
-            dd = xorTable[i][24 * j + 15][(c >> 8) & 0xf][(d >> 8) & 0xf];
-            input[4 * j + 2] = 
-                xorTable[i][24 * j + 16][aa][bb] << 4 | 
-                xorTable[i][24 * j + 17][cc][dd];
-            aa = xorTable[i][24 * j + 18][(a >> 4) & 0xf][(b >> 4) & 0xf];
-            bb = xorTable[i][24 * j + 19][(c >> 4) & 0xf][(d >> 4) & 0xf];
-            cc = xorTable[i][24 * j + 20][(a >> 0) & 0xf][(b >> 0) & 0xf];
-            dd = xorTable[i][24 * j + 21][(c >> 0) & 0xf][(d >> 0) & 0xf];
-            input[4 * j + 3] = 
-                xorTable[i][24 * j + 22][aa][bb] << 4 | 
-                xorTable[i][24 * j + 23][cc][dd];
+        for (int j = 0; j < 4; j++)
+        {
+            a = tyibox[i][4 * j + 0][input[4 * j + 0]];
+			b = tyibox[i][4 * j + 1][input[4 * j + 1]];
+			c = tyibox[i][4 * j + 2][input[4 * j + 2]];
+			d = tyibox[i][4 * j + 3][input[4 * j + 3]];
+            aa = xortable[(a >> 28) & 0xf][(b >> 28) & 0xf];
+            bb = xortable[(c >> 28) & 0xf][(d >> 28) & 0xf];
+            cc = xortable[(a >> 24) & 0xf][(b >> 24) & 0xf];
+            dd = xortable[(c >> 24) & 0xf][(d >> 24) & 0xf];
+			input[4 * j + 0] = ((aa ^ bb) << 4) | (cc ^ dd);
+            aa = xortable[(a >> 20) & 0xf][(b >> 20) & 0xf];
+            bb = xortable[(c >> 20) & 0xf][(d >> 20) & 0xf];
+            cc = xortable[(a >> 16) & 0xf][(b >> 16) & 0xf];
+            dd = xortable[(c >> 16) & 0xf][(d >> 16) & 0xf];
+			input[4 * j + 1] = ((aa ^ bb) << 4) | (cc ^ dd);
+            aa = xortable[(a >> 12) & 0xf][(b >> 12) & 0xf];
+            bb = xortable[(c >> 12) & 0xf][(d >> 12) & 0xf];
+            cc = xortable[(a >> 8) & 0xf][(b >> 8) & 0xf];
+            dd = xortable[(c >> 8) & 0xf][(d >> 8) & 0xf];
+			input[4 * j + 2] = ((aa ^ bb) << 4) | (cc ^ dd);
+            aa = xortable[(a >> 4) & 0xf][(b >> 4) & 0xf];
+            bb = xortable[(c >> 4) & 0xf][(d >> 4) & 0xf];
+            cc = xortable[a & 0xf][b & 0xf];
+            dd = xortable[c & 0xf][d & 0xf];
+			input[4 * j + 3] = ((aa ^ bb) << 4) | (cc ^ dd);
         }
     }
-    //第十轮
     shiftRows(input);
-    for (int j = 0; j < 16; j++) {
-        input[j] = TBoxes[9][j][input[j]];
+    for (int j = 0; j < 16; j++)
+    {
+        input[j] = tbox[9][j][input[j]];
     }
-    for (int i = 0; i < 16; i++)
-        output[i] = input[i];
 }
 ```
 
-## C实现
+## 完整代码
 
 ```C
 #include <stdio.h>
@@ -258,7 +294,6 @@ u8 gmul(u8 ap, u8 bp) {
     while (a != 0 && b != 0) {
         if (b & 1 != 0) p ^= a;
         if ((a & 0x80) != 0)
-            // a = ((u32)a << 1) ^ 0x11b;
             a = (a << 1) ^ 0x1b;
         else
             a <<= 1;
@@ -321,6 +356,12 @@ void getTbox(u32 expandedKey[44], u8 tbox[10][16][256]) {
     }
 }
 
+void getXorTable(u8 table[16][16]) {
+    for (int i = 0; i < 16; i++)
+        for (int j = 0; j < 16; j++)
+            table[i][j] = i ^ j;
+}
+
 void getTyiTable(u8 table[4][256][4]) {
     for (int i = 0; i < 256; i++)
     {
@@ -343,7 +384,7 @@ void getTyiTable(u8 table[4][256][4]) {
     }
 }
 
-void getTyiBox(u32 expandedKey[44], u8 tbox[10][16][256], u32 tyibox[9][16][256]) {
+void getTyiBox(u8 tbox[10][16][256], u32 tyibox[9][16][256]) {
     u8 tyitable[4][256][4] = {0};
     getTyiTable(tyitable);
     for (int r = 0; r < 9; r++)
@@ -358,14 +399,18 @@ void getTyiBox(u32 expandedKey[44], u8 tbox[10][16][256], u32 tyibox[9][16][256]
                 }
 }
 
+
+
 void aes_encrypt_by_table(u8 input[16], u8 key[16]) {
     u32 a, b, c, d, aa, bb, cc, dd;
     u8 result[16] = {0};
-    u8 tbox[10][16][256] = {0};
+    u8 tbox[10][16][256] = {0}, xortable[16][16] = {0};
     u32 expandedKey[44] = {0}, tyibox[9][16][256] = {0};
     expandKey(key, expandedKey);
     getTbox(expandedKey, tbox);
-    getTyiBox(expandedKey, tbox, tyibox);
+    getTyiBox(tbox, tyibox);
+    getXorTable(xortable);
+
 
     for (int i = 0; i < 9; i++)
     {
@@ -376,25 +421,25 @@ void aes_encrypt_by_table(u8 input[16], u8 key[16]) {
 			b = tyibox[i][4 * j + 1][input[4 * j + 1]];
 			c = tyibox[i][4 * j + 2][input[4 * j + 2]];
 			d = tyibox[i][4 * j + 3][input[4 * j + 3]];
-			aa = ((a >> 28) & 0xf) ^ ((b >> 28) & 0xf);
-			bb = ((c >> 28) & 0xf) ^ ((d >> 28) & 0xf);
-			cc = ((a >> 24) & 0xf) ^ ((b >> 24) & 0xf);
-			dd = ((c >> 24) & 0xf) ^ ((d >> 24) & 0xf);
+            aa = xortable[(a >> 28) & 0xf][(b >> 28) & 0xf];
+            bb = xortable[(c >> 28) & 0xf][(d >> 28) & 0xf];
+            cc = xortable[(a >> 24) & 0xf][(b >> 24) & 0xf];
+            dd = xortable[(c >> 24) & 0xf][(d >> 24) & 0xf];
 			input[4 * j + 0] = ((aa ^ bb) << 4) | (cc ^ dd);
-			aa = ((a >> 20) & 0xf) ^ ((b >> 20) & 0xf);
-			bb = ((c >> 20) & 0xf) ^ ((d >> 20) & 0xf);
-			cc = ((a >> 16) & 0xf) ^ ((b >> 16) & 0xf);
-			dd = ((c >> 16) & 0xf) ^ ((d >> 16) & 0xf);
+            aa = xortable[(a >> 20) & 0xf][(b >> 20) & 0xf];
+            bb = xortable[(c >> 20) & 0xf][(d >> 20) & 0xf];
+            cc = xortable[(a >> 16) & 0xf][(b >> 16) & 0xf];
+            dd = xortable[(c >> 16) & 0xf][(d >> 16) & 0xf];
 			input[4 * j + 1] = ((aa ^ bb) << 4) | (cc ^ dd);
-			aa = ((a >> 12) & 0xf) ^ ((b >> 12) & 0xf);
-			bb = ((c >> 12) & 0xf) ^ ((d >> 12) & 0xf);
-			cc = ((a >> 8) & 0xf) ^ ((b >> 8) & 0xf);
-			dd = ((c >> 8) & 0xf) ^ ((d >> 8) & 0xf);
+            aa = xortable[(a >> 12) & 0xf][(b >> 12) & 0xf];
+            bb = xortable[(c >> 12) & 0xf][(d >> 12) & 0xf];
+            cc = xortable[(a >> 8) & 0xf][(b >> 8) & 0xf];
+            dd = xortable[(c >> 8) & 0xf][(d >> 8) & 0xf];
 			input[4 * j + 2] = ((aa ^ bb) << 4) | (cc ^ dd);
-			aa = ((a >> 4) & 0xf) ^ ((b >> 4) & 0xf);
-			bb = ((c >> 4) & 0xf) ^ ((d >> 4) & 0xf);
-			cc = ((a >> 0) & 0xf) ^ ((b >> 0) & 0xf);
-			dd = ((c >> 0) & 0xf) ^ ((d >> 0) & 0xf);
+            aa = xortable[(a >> 4) & 0xf][(b >> 4) & 0xf];
+            bb = xortable[(c >> 4) & 0xf][(d >> 4) & 0xf];
+            cc = xortable[a & 0xf][b & 0xf];
+            dd = xortable[c & 0xf][d & 0xf];
 			input[4 * j + 3] = ((aa ^ bb) << 4) | (cc ^ dd);
         }
     }
@@ -404,27 +449,13 @@ void aes_encrypt_by_table(u8 input[16], u8 key[16]) {
         input[j] = tbox[9][j][input[j]];
     }
 }
-
-
-int main() {
-    u8 input[16] = "";
-    u8 k[16] = "";
-    u32 ek[44];
-    aes_encrypt_by_table(input, k);
-    for (int i = 0; i < 16; i++) {
-        printf("0x%02x ", input[i]);
-    }
-    return 0;
-}
 ```
-
-
 
 # 例题
 
-## 强网杯 dot
+这里通过两道例题来深刻认识白盒AES。
 
-之前看到这个完全不知道会是白盒AES
+## 强网杯 dot
 
 通过更改第十轮的输入的一个字节（每一次不同位置，16个位置），得到16个密文结果（与正确结果会有四个字节的不同）
 
@@ -564,26 +595,6 @@ K10: EA9F6BE2DF5C358495648BEAB9FCFF81
 ```C
 __int8 __fastcall sub_140004BF0(__m128i *a1, __m128i *a2)
 {
-    __int8 *v2; // rdi
-    __int64 v3; // r13
-    __int64 v4; // r12
-    __m128i *v5; // rbx
-    __int8 *v6; // rbx
-    unsigned int v7; // ebp
-    unsigned int v8; // edi
-    unsigned int v9; // r14d
-    unsigned int v10; // esi
-    __int64 v11; // r11
-    __int64 v12; // r10
-    __int64 v13; // r9
-    __int64 v14; // rax
-    unsigned int v15; // edi
-    __int8 result; // al
-    __int64 v17; // rdx
-    __m128i *v18; // rcx
-    __int8 v19; // al
-    __int64 v22; // [rsp+70h] [rbp+18h]
-
     v2 = &a1->m128i_i8[2];
     v3 = 0i64;
     v4 = 0i64;
